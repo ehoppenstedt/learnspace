@@ -1,0 +1,14 @@
+# Runtime. Each dependency is justified in docs/phase-0/05-dependencies.md.
+Django==5.2.17
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
+psycopg[binary]==3.3.6
+PyJWT[crypto]==2.15.1
+cryptography==50.0.2
+procrastinate==3.10.0
+boto3==1.43.108
+Pillow==12.3.0
+pillow-heif==1.8.0
+phonenumbers==9.0.40
+gunicorn==26.2.0
+sentry-sdk==2.71.0

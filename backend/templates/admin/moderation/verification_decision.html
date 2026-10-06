@@ -1,0 +1,13 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>{{ doc.provider.display_name }} — {{ doc.get_doc_type_display }}</h1>
+<p>Legal name on account: <b>{{ user_obj.first_name }} {{ user_obj.last_name }}</b> · DOB {{ user_obj.date_of_birth|default:"—" }} · {{ user_obj.email }} · {{ user_obj.phone_e164 }}</p>
+<p>Status: <b>{{ doc.status }}</b>{% if doc.reviewed_by %} by {{ doc.reviewed_by }} on {{ doc.reviewed_at }}{% endif %}</p>
+<p>Check: photo and name match the account, document is current, legible, and not altered.</p>
+{% if is_pdf %}<p><a href="{{ doc_url }}" target="_blank" rel="noopener">Open PDF (link expires)</a></p>
+{% else %}<img src="{{ doc_url }}" alt="document" style="max-width:720px;border:1px solid #ccc;border-radius:8px">{% endif %}
+{% if doc.status == "pending" %}
+<h2>Decision</h2>
+<form method="post">{% csrf_token %}{{ form.as_p }}<input type="submit" class="default" value="Submit decision"></form>
+{% endif %}
+{% endblock %}
