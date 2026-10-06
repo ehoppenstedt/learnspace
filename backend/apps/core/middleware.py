@@ -30,3 +30,29 @@ class RequestLogMiddleware:
                 },
             )
         return response
+
+
+class DevCorsMiddleware:
+    """Development only: lets the Expo web preview call the API from another port.
+    Active only when DEBUG is on and DEV_CORS_ORIGINS is set. Native apps don't need CORS."""
+
+    def __init__(self, get_response):
+        from django.conf import settings
+
+        self.get_response = get_response
+        self.origins = set(settings.DEV_CORS_ORIGINS) if settings.DEBUG else set()
+
+    def __call__(self, request):
+        origin = request.headers.get("Origin")
+        allowed = origin in self.origins
+        if allowed and request.method == "OPTIONS":
+            from django.http import HttpResponse
+
+            response = HttpResponse(status=204)
+        else:
+            response = self.get_response(request)
+        if allowed:
+            response["Access-Control-Allow-Origin"] = origin
+            response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept-Language"
+            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        return response

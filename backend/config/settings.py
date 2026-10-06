@@ -11,6 +11,7 @@ SECRET_KEY = env_str("SECRET_KEY", "dev-insecure-secret-key-change-me")
 DEBUG = env_bool("DEBUG", False)
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1,10.0.2.2")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+DEV_CORS_ORIGINS = env_list("DEV_CORS_ORIGINS")  # Expo web preview only; ignored unless DEBUG
 PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "http://localhost:8000")
 
 # --- Brand / legal (placeholders until the operating entity is final) ---------
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "apps.core.middleware.DevCorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",

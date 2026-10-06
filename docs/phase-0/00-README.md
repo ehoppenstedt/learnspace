@@ -1,6 +1,6 @@
 # Phase 0 — Discovery and design
 
-Status: **awaiting your answers and approval**. No application code exists yet.
+Status: **approved** (2026-10-06). Defaults accepted for every "Blocks Phase 1" question; Stripe Connect chosen; fee set to 5%. Applied decisions are listed in [Phase 1](../phase-1/README.md#1-your-phase-0-answers-as-applied).
 
 | Doc | Contents |
 |---|---|

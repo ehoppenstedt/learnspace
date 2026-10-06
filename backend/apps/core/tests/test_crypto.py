@@ -59,3 +59,4 @@ def test_uuid7_is_time_ordered_and_versioned():
     ids = [uuid7() for _ in range(50)]
     assert all(u.version == 7 for u in ids)
     assert [u.int >> 80 for u in ids] == sorted(u.int >> 80 for u in ids)
+

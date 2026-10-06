@@ -33,14 +33,14 @@ Kept deliberately small. Django already gives us ORM, migrations, admin, i18n, G
 | B6 | `cryptography` | AES-GCM field encryption for sensitive data | Never hand-roll crypto primitives. |
 | B7 | `procrastinate` | Postgres-backed job queue with periodic tasks, retries, LISTEN/NOTIFY | Meets "Postgres queue, no Redis". Has Django integration and cron-style schedules (hold expiry, reminders, review reveal). Alternative: `django-tasks` DB backend (lighter, fewer scheduling features). |
 | B8 | `stripe` | Gateway SDK | Signature verification and API versioning; only imported inside the Stripe adapter. |
-| B9 | `boto3` (or `django-storages[s3]`) | S3-compatible uploads, presigned URLs | Request signing (SigV4) is not worth reimplementing. `django-storages` is a thin, widely used wrapper; can be dropped if we only need presigned URLs. |
+| B9 | `boto3` (Phase 1: used directly; `django-storages` not needed) | S3-compatible uploads, presigned URLs | Request signing (SigV4) is not worth reimplementing. `django-storages` is a thin, widely used wrapper; can be dropped if we only need presigned URLs. |
 | B10 | `Pillow` + `pillow-heif` | Image resize/compress; iPhone HEIC uploads | HEIC decoding is a must for iOS photos. |
 | B11 | `ffmpeg` (system binary in worker image) | Video transcoding, duration/size limits, poster frame | Industry standard; invoked via subprocess, no Python wrapper. Managed alternative (Mux, Cloudflare Stream) only if volume justifies it. |
 | B12 | `sentry-sdk` | Error tracking | Pairs with S9. |
 | B13 | `phonenumbers` | E.164 normalization, Mexican number validation, contact-info detection in chat | Number formats and metadata are maintained data, not code. |
 | B14 | `icalendar` | `.ics` generation | Small; RFC 5545 escaping and time zones are easy to get wrong. Could be replaced with ~60 lines if you prefer zero deps here. |
 | B15 | `gunicorn` | WSGI server | Required for production. |
-| B16 | `structlog` | Structured JSON logs | Could be done with stdlib `logging` + a JSON formatter; structlog makes request-context binding clean. Optional. |
+| ~~B16~~ | ~~`structlog`~~ | Structured JSON logs | **Dropped in Phase 1:** a 25-line stdlib JSON formatter does the job. |
 | Dev | `pytest`, `pytest-django`, `factory-boy`, `ruff`, `mypy`/`django-stubs`, `time-machine` | Tests, lint, types, time travel for hold/window tests | Dev-only. |
 
 Not used, deliberately: Celery, Redis, Django Channels, django-allauth, GraphQL, Elasticsearch (Postgres FTS + `pg_trgm` is enough for CDMX scale).
@@ -64,3 +64,18 @@ No global state library: React Query + React context is enough at this size.
 ## 4. Running total
 
 External services required at launch: 9 (S1–S9), plus store accounts. Backend runtime packages: 16 (one optional). Mobile runtime packages beyond Expo: 7.
+
+## 5. Phase 1 actuals
+
+What was actually installed, beyond the plan above:
+
+| Package | Why |
+|---|---|
+| `expo-image` | Disk/memory image cache, smooth transitions, `recyclingKey` for fast lists. The feed is photo-first, so this matters more than anywhere else. |
+| `@react-native-async-storage/async-storage` | Guest filters, chosen neighborhood and UI language persist on the device (non-secret data; tokens stay in `expo-secure-store`). |
+| `@react-native-community/datetimepicker` | Native date/time pickers for session scheduling and the filter time window. |
+| `expo-crypto` | SHA-256 nonce for Sign in with Apple (replay protection). |
+| `react-native-web`, `react-dom`, `@expo/metro-runtime` | **Development preview only** (browser rendering of the app for reviews/screenshots). Not part of the iOS/Android binaries. |
+| `expo-video` | Installed for in-detail video playback; currently the detail shows video posters. Remove if video stays out of Phase 2. |
+
+Not installed yet (arrive with the phase that needs them): `@stripe/stripe-react-native` and `stripe` (Phase 2), `expo-notifications` (Phase 2), `@sentry/react-native` (before the first TestFlight build).

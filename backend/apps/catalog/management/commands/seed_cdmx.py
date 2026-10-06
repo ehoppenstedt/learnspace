@@ -181,7 +181,7 @@ class Command(BaseCommand):
             experience = Experience.objects.create(
                 provider=provider, status="live", title=title,
                 what_you_learn=f"{learn} Al terminar te llevas lo que hiciste y una guía para seguir practicando en casa.",
-                who_its_for=rng.choice(WHO), category=categories[slug], instruction_language=rng.choices(["es", "en"], [92, 8])[0],
+                who_its_for=rng.choice(WHO), category=categories[slug], instruction_language="en" if "Inglés" in title else "es",
                 modality="in_person", offering_type=offering, listed_price_cents=listed, default_capacity=capacity,
                 space=space, cancellation_policy=policy, published_at=now,
                 rating_avg=round(rng.uniform(4.2, 5.0), 2) if rng.random() < 0.8 else None,
