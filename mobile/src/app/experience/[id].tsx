@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Circle, MapView, Marker } from '@/components/map';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -227,8 +227,7 @@ function BookingBar({ e, bottom }: { e: ExperienceDetail; bottom: number }) {
     const next = `/experience/${e.id}`;
     if (!isLoggedIn) return router.push({ pathname: '/auth', params: { next } });
     if (!me?.profile_complete) return router.push({ pathname: '/auth/complete-profile', params: { next } });
-    // Phase 2 replaces this with: session picker -> seats -> review (price breakdown) -> pay.
-    Alert.alert(t('detail.bookingSoonTitle'), t('detail.bookingSoonBody'));
+    router.push(`/book/${e.id}`);
   };
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(bottom, space.md) }]}>

@@ -66,6 +66,20 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID"
         }
+      ],
+      "expo-web-browser",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.learnspace.app",
+          "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5A31F4"
+        }
       ]
     ],
     "experiments": {
@@ -74,7 +88,11 @@
     "extra": {
       "apiUrl": "http://localhost:8000/api/v1",
       "googleWebClientId": "",
-      "googleIosClientId": ""
+      "googleIosClientId": "",
+      "eas": {
+        "projectId": ""
+      },
+      "stripeMerchantIdentifier": "merchant.com.learnspace.app"
     }
   }
 }

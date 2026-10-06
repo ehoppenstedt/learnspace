@@ -12,6 +12,13 @@ import type {
   ProviderProfile,
   ProviderSession,
   ProviderSpace,
+  Booking,
+  Earnings,
+  NotificationPrefs,
+  OnboardingStatus,
+  ProviderBooking,
+  RosterAttendee,
+  SavedCard,
 } from './types';
 
 export function useConfig() {
@@ -113,4 +120,58 @@ export function useExperienceAction() {
       qc.invalidateQueries({ queryKey: ['provider', 'experiences'] });
     },
   });
+}
+
+// ---------------------------------------------------------------- bookings (Phase 2)
+
+
+export function useBookings(scope: 'upcoming' | 'past', enabled = true) {
+  return useQuery({ queryKey: ['bookings', scope], queryFn: () => api<Booking[]>('/bookings', { query: { scope } }), enabled });
+}
+
+export function useBooking(id: string | undefined, poll = false) {
+  return useQuery({
+    queryKey: ['booking', id],
+    queryFn: () => api<Booking>(`/bookings/${id}`),
+    enabled: Boolean(id),
+    // While a payment is settling, poll until the webhook has landed.
+    refetchInterval: (q) => (poll && q.state.data?.status === 'pending_payment' ? 1500 : false),
+  });
+}
+
+export function useRoster(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: ['provider', 'roster', sessionId],
+    queryFn: () => api<{ session: { id: string; starts_at: string; ends_at: string; capacity: number; seats_booked: number; status: string }; attendees: RosterAttendee[] }>(
+      `/provider/sessions/${sessionId}/roster`),
+    enabled: Boolean(sessionId),
+  });
+}
+
+export function useProviderBookings(status?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['provider', 'bookings', status],
+    queryFn: () => api<ProviderBooking[]>('/provider/bookings', { query: { status } }),
+    enabled,
+  });
+}
+
+export function useOnboarding(enabled = true) {
+  return useQuery({
+    queryKey: ['provider', 'onboarding'],
+    queryFn: () => api<OnboardingStatus>('/provider/payments/onboarding', { query: { refresh: 1 } }),
+    enabled,
+  });
+}
+
+export function useEarnings(enabled = true) {
+  return useQuery({ queryKey: ['provider', 'earnings'], queryFn: () => api<Earnings>('/provider/earnings'), enabled });
+}
+
+export function useSavedCards(enabled = true) {
+  return useQuery({ queryKey: ['me', 'cards'], queryFn: () => api<SavedCard[]>('/me/payment-methods'), enabled });
+}
+
+export function useNotificationPrefs(enabled = true) {
+  return useQuery({ queryKey: ['me', 'prefs'], queryFn: () => api<NotificationPrefs>('/me/notification-prefs'), enabled });
 }

@@ -79,3 +79,14 @@ What was actually installed, beyond the plan above:
 | `expo-video` | Installed for in-detail video playback; currently the detail shows video posters. Remove if video stays out of Phase 2. |
 
 Not installed yet (arrive with the phase that needs them): `@stripe/stripe-react-native` and `stripe` (Phase 2), `expo-notifications` (Phase 2), `@sentry/react-native` (before the first TestFlight build).
+
+## 6. Phase 2 additions
+
+| Package | Why |
+|---|---|
+| `stripe` (Python) | Request signing, webhook signature verification, API versioning. Only imported by the Stripe adapter. |
+| `@stripe/stripe-react-native` | PaymentSheet: cards, Apple Pay, Google Pay, 3-D Secure, saved cards. Required for wallets and PCI scope. |
+| `expo-notifications`, `expo-device` | Push token registration and notification taps (deep links to bookings). |
+| `expo-web-browser` | Opens Stripe-hosted provider onboarding (KYC) in an in-app browser. |
+
+Built in-house instead of adding packages: TOTP for admin 2FA (RFC 6238, ~30 lines), `.ics` generation (RFC 5545, ~40 lines), Twilio and Expo push clients (plain HTTPS).

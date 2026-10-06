@@ -188,3 +188,99 @@ export type ProviderProfile = {
 };
 
 export type ApiErrorBody = { error: { code: string; message: string; fields: Record<string, unknown>; retry_after?: number } };
+
+// ------------------------------------------------------------------ Phase 2
+
+export type BookingStatus =
+  | 'pending_payment' | 'pending_approval' | 'confirmed' | 'declined' | 'payment_failed' | 'cancelled' | 'completed' | 'no_show';
+
+export type Hold = { hold_id: string; expires_at: string; seats: number; price: Money };
+
+export type PaymentSheetParams = {
+  payment_intent_client_secret: string;
+  customer_id: string;
+  customer_ephemeral_key: string | null;
+  publishable_key: string;
+  gateway: 'stripe' | 'fake';
+};
+
+export type Booking = {
+  id: string;
+  code: string;
+  status: BookingStatus;
+  seats: number;
+  starts_at: string;
+  ends_at: string;
+  experience: { id: string; title: string; cover: Media | null; category: string | null; offering_type: OfferingType };
+  sessions: { id: string; starts_at: string; ends_at: string; status: string; attendance: string }[];
+  price: { listed_cents: number; fee_cents: number; total_cents: number; fee_bps: number; currency: 'MXN' };
+  location:
+    | { approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null; neighborhood: string; space_name: string }
+    | { approximate: true; lat: number; lng: number; neighborhood: string }
+    | null;
+  provider: { id: string; display_name: string };
+  policy: { code: string; name_es: string; name_en: string; rules: PolicyRule[] };
+  refunded_cents: number;
+  can_cancel: boolean;
+  approval_deadline: string | null;
+  review_pending: boolean;
+  calendar_url?: string;
+};
+
+export type CancellationQuote = {
+  booking_id: string;
+  listed_refund_cents: number;
+  fee_refund_cents: number;
+  refund_cents: number;
+  hours_before_start: string;
+  not_charged: boolean;
+  quote_token: string;
+  valid_for_seconds: number;
+};
+
+export type RosterAttendee = {
+  booking_id: string;
+  code: string;
+  status: BookingStatus;
+  seats: number;
+  attendance: 'unknown' | 'present' | 'absent';
+  learner: {
+    first_name: string;
+    last_initial: string;
+    conduct_score: string | null;
+    conduct_count: number;
+    fluent_languages: string[];
+    accessibility_needs: string | null;
+  };
+};
+
+export type ProviderBooking = {
+  id: string;
+  code: string;
+  status: BookingStatus;
+  seats: number;
+  starts_at: string;
+  experience_title: string;
+  listed_cents: number;
+  approval_deadline: string | null;
+  learner: { first_name: string; conduct_score: string | null; conduct_count: number };
+};
+
+export type OnboardingStatus = {
+  ready_to_publish: boolean;
+  missing: ('identity' | 'payment_account' | 'tax_profile')[];
+  identity_status: string;
+  payment_account: { kyc_status: string; payouts_enabled: boolean; requirements_due: string[] } | null;
+  tax_profile: { person_type: 'fisica' | 'moral'; rfc: string; legal_name: string; validated: boolean } | null;
+};
+
+export type Earnings = {
+  totals: { upcoming_cents: number; on_hold_cents: number; paid_cents: number };
+  transfers: {
+    id: string; booking_code: string; experience: string; gross_cents: number; isr_withheld_cents: number;
+    iva_withheld_cents: number; net_cents: number; status: string; release_at: string; sent_at: string | null; hold_reason: string;
+  }[];
+};
+
+export type SavedCard = { id: string; brand: string; last4: string; exp_month: number; exp_year: number };
+export type NotificationPrefs = { push: boolean; email: boolean; reminders: boolean };

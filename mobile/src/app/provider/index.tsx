@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Button, Centered } from '@/components/ui';
-import { useExperienceAction, useProviderExperiences, useProviderProfile } from '@/lib/api/hooks';
+import { useExperienceAction, useOnboarding, useProviderBookings, useProviderExperiences, useProviderProfile } from '@/lib/api/hooks';
 import type { ProviderExperience } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { formatMoney } from '@/lib/utils/format';
@@ -17,6 +17,8 @@ export default function ManageExperiences() {
   const list = useProviderExperiences(Boolean(me?.is_provider));
   const profile = useProviderProfile(Boolean(me?.is_provider));
   const verified = profile.data?.verification_status === 'verified';
+  const onboarding = useOnboarding(Boolean(me?.is_provider));
+  const requests = useProviderBookings('pending_approval', Boolean(me?.is_provider));
 
   return (
     <FlatList
@@ -34,6 +36,18 @@ export default function ManageExperiences() {
               <Ionicons name="chevron-forward" size={18} color={colors.text} />
             </Pressable>
           ) : null}
+          {onboarding.data && !onboarding.data.ready_to_publish ? (
+            <Pressable style={styles.banner} onPress={() => router.push('/provider/payments')}>
+              <Ionicons name="wallet-outline" size={20} color={colors.warning} />
+              <Text style={[type.smallStrong, { flex: 1, marginLeft: space.sm }]}>{t('ops.paymentsTitle')}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.text} />
+            </Pressable>
+          ) : null}
+          <View style={styles.tools}>
+            <Tool icon="hourglass-outline" label={`${t('ops.requests')}${requests.data?.length ? ` (${requests.data.length})` : ''}`} onPress={() => router.push('/provider/requests')} />
+            <Tool icon="cash-outline" label={t('ops.earnings')} onPress={() => router.push('/provider/earnings')} />
+            <Tool icon="wallet-outline" label={t('ops.paymentsTitle')} onPress={() => router.push('/provider/payments')} />
+          </View>
           <Button title={t('provider.newExperience')} icon="add" onPress={() => router.push('/provider/experience/new')} />
         </View>
       }
@@ -53,7 +67,7 @@ function Row({ item }: { item: ProviderExperience }) {
       <Image source={cover} style={[styles.thumb, { backgroundColor: item.media[0]?.color ?? colors.surface }]} contentFit="cover" />
       <View style={{ flex: 1, marginLeft: space.md }}>
         <Text style={type.bodyStrong} numberOfLines={2}>{item.title || t('provider.status.draft')}</Text>
-        <Text style={type.small}>{formatMoney(item.price.total_cents, i18n.language)} · {item.sessions_upcoming} {t('provider.sessions').toLowerCase()}</Text>
+        <Text style={type.small}>{formatMoney(item.listed_price_cents, i18n.language)} · {item.sessions_upcoming} {t('provider.sessions').toLowerCase()}</Text>
         <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.sm, flexWrap: 'wrap' }}>
           <Badge label={t(`provider.status.${item.status}`)} bg={sc.bg} fg={sc.fg} />
           {item.pending_changes ? (
@@ -77,7 +91,18 @@ function Row({ item }: { item: ProviderExperience }) {
   );
 }
 
+function Tool({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.tool} onPress={onPress}>
+      <Ionicons name={icon as never} size={22} color={colors.text} />
+      <Text style={[type.caption, { color: colors.text, marginTop: 4, textAlign: 'center' }]} numberOfLines={2}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  tools: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg },
+  tool: { flex: 1, alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: space.md },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
   thumb: { width: 84, height: 84, borderRadius: radius.md },
   banner: {

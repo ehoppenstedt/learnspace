@@ -1,4 +1,4 @@
-import { ageOn, formatDistance, formatMoney, maskDob, parseDob, pesosToCents, previewTotal } from '../format';
+import { ageOn, formatCountdown, formatDistance, formatMoney, maskDob, parseDob, pesosToCents, previewTotal, seatsLabel } from '../format';
 
 describe('formatMoney', () => {
   it('drops centavos when whole', () => {
@@ -47,5 +47,18 @@ describe('pesosToCents', () => {
     expect(pesosToCents('$1,250.5')).toBe(125050);
     expect(pesosToCents('12.345')).toBeNull();
     expect(pesosToCents('abc')).toBeNull();
+  });
+});
+
+describe('booking helpers', () => {
+  it('formats the hold countdown and never goes negative', () => {
+    expect(formatCountdown(600_000)).toBe('10:00');
+    expect(formatCountdown(573_100)).toBe('9:34');
+    expect(formatCountdown(-5)).toBe('0:00');
+  });
+  it('pluralizes seats', () => {
+    expect(seatsLabel(1)).toBe('1 lugar');
+    expect(seatsLabel(3)).toBe('3 lugares');
+    expect(seatsLabel(2, 'en')).toBe('2 spots');
   });
 });

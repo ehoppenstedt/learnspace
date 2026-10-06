@@ -80,7 +80,9 @@ class BookingsView(APIView):
                 "customer_ephemeral_key": checkout.ephemeral_key, "publishable_key": checkout.publishable_key,
                 "gateway": booking.payments.order_by("-created_at").values_list("gateway", flat=True).first(),
             }
-        return Response({"booking": BookingSerializer(booking).data, "payment_sheet": payment_sheet},
+        payment = booking.payments.order_by("-created_at").first()
+        return Response({"booking": BookingSerializer(booking).data, "payment_sheet": payment_sheet,
+                         "requires_approval": bool(payment and payment.capture_manual)},
                         status=status.HTTP_201_CREATED)
 
 

@@ -16,7 +16,9 @@ export function continueAfterLogin(user: Me, next?: string) {
 }
 
 export function finishAuth(next?: string) {
+  // The auth flow is a stack inside a modal: first pop to its first screen, then close the modal.
   if (router.canDismiss()) router.dismissAll();
+  if (router.canGoBack()) router.back();
   // Experience pages are already underneath the modal; anything else is pushed.
   if (next && !next.startsWith('/experience/')) router.push(next as Href);
 }

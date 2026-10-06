@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/lib/api/client';
-import { AuthProvider } from '@/lib/auth/AuthContext';
+import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
+import { listenForNotificationTaps, registerForPush } from '@/lib/push';
 import { restoreLanguage } from '@/lib/i18n'; // also initializes i18next
 import { FiltersProvider } from '@/lib/state/FiltersContext';
 import { LocationProvider } from '@/lib/state/LocationContext';
@@ -36,6 +37,7 @@ export default function RootLayout() {
           <LocationProvider>
             <FiltersProvider>
               <StatusBar style="dark" />
+              <PushBridge />
               <Stack
                 screenOptions={{
                   headerShadowVisible: false,
@@ -57,6 +59,16 @@ export default function RootLayout() {
                 <Stack.Screen name="provider/experience/[id]" options={{ title: '' }} />
                 <Stack.Screen name="provider/sessions/[id]" options={{ title: t('sessions.title') }} />
                 <Stack.Screen name="provider/space" options={{ presentation: 'modal', title: t('space.title') }} />
+                <Stack.Screen name="book/[id]" options={{ title: '' }} />
+                <Stack.Screen name="bookings/index" options={{ title: t('bookings.title') }} />
+                <Stack.Screen name="bookings/[id]" options={{ title: '' }} />
+                <Stack.Screen name="profile/notifications" options={{ title: t('settings.notifications') }} />
+                <Stack.Screen name="profile/cards" options={{ title: t('settings.cards') }} />
+                <Stack.Screen name="profile/privacy" options={{ title: t('settings.privacy') }} />
+                <Stack.Screen name="provider/payments" options={{ title: t('ops.paymentsTitle') }} />
+                <Stack.Screen name="provider/requests" options={{ title: t('ops.requests') }} />
+                <Stack.Screen name="provider/earnings" options={{ title: t('ops.earnings') }} />
+                <Stack.Screen name="provider/roster/[id]" options={{ title: t('ops.roster') }} />
               </Stack>
             </FiltersProvider>
           </LocationProvider>
@@ -64,4 +76,14 @@ export default function RootLayout() {
       </QueryClientProvider>
     </SafeAreaProvider>
   );
+}
+
+/** Registers the device for push once logged in, and routes notification taps to bookings. */
+function PushBridge() {
+  const { isLoggedIn } = useAuth();
+  useEffect(() => listenForNotificationTaps(), []);
+  useEffect(() => {
+    if (isLoggedIn) registerForPush().catch(() => undefined);
+  }, [isLoggedIn]);
+  return null;
 }

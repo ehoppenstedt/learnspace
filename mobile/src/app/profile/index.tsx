@@ -45,9 +45,12 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={20} color={colors.text} />
       </Pressable>
 
+      <Row icon="calendar-outline" label={t('profile.bookings')} onPress={() => router.push('/bookings')} />
       <Row icon="heart-outline" label={t('profile.interests')} onPress={() => router.push('/profile/interests')} />
+      <Row icon="notifications-outline" label={t('settings.notifications')} onPress={() => router.push('/profile/notifications')} />
+      <Row icon="card-outline" label={t('settings.cards')} onPress={() => router.push('/profile/cards')} />
       <Row icon="ribbon-outline" label={t('profile.conduct')} value={me?.conduct_score ?? t('profile.conductNew')} />
-      <Row icon="shield-outline" label={t('profile.privacy')} value={t('common.comingSoon')} />
+      <Row icon="shield-outline" label={t('profile.privacy')} onPress={() => router.push('/profile/privacy')} />
       <LanguagePicker current={i18n.language} />
       <Section last>
         <Button title={t('auth.logout')} variant="ghost" onPress={async () => { await signOut(); router.back(); }} />

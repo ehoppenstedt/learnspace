@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -140,10 +140,10 @@ export default function SessionsScreen() {
         {(sessions.data ?? []).length === 0 ? <Text style={type.small}>{t('sessions.empty')}</Text> : null}
         {(sessions.data ?? []).map((s) => (
           <View key={s.id} style={styles.sessionRow}>
-            <View style={{ flex: 1 }}>
+            <Pressable style={{ flex: 1 }} onPress={() => router.push(`/provider/roster/${s.id}`)}>
               <Text style={type.bodyStrong}>{formatSessionDate(s.starts_at, i18n.language).split(' · ')[0]}</Text>
               <Text style={type.small}>{formatTimeRange(s.starts_at, s.ends_at, i18n.language)} · {s.seats_booked}/{s.capacity}</Text>
-            </View>
+            </Pressable>
             {s.seats_booked === 0 ? <Button title={t('common.delete')} variant="ghost" onPress={() => remove(s)} /> : null}
           </View>
         ))}

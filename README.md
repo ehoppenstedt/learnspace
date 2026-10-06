@@ -5,8 +5,11 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 | Phase | Status | Docs |
 |---|---|---|
 | 0 — Design | Done | [docs/phase-0](docs/phase-0/00-README.md) |
-| 1 — Auth, discovery, provider creation, admin review | **Done, awaiting approval** | [docs/phase-1](docs/phase-1/README.md) |
-| 2 — Booking, payments (Stripe Connect), cancellations, notifications | Not started | |
+| 1 — Auth, discovery, provider creation, admin review | Done | [docs/phase-1](docs/phase-1/README.md) |
+| 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | **Done, awaiting approval** | [docs/phase-2](docs/phase-2/README.md) |
+| 3 — Reviews, conduct scores, messaging, online experiences | Not started | |
+
+Deploying: [docs/deploy.md](docs/deploy.md).
 
 ## Repository layout
 
@@ -14,9 +17,11 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 backend/   Django 5.2 + DRF modular monolith, PostgreSQL 16 + PostGIS 3.4
   apps/accounts     users, OTP/Apple/Google auth, 18+ gate, consent, providers, ID verification
   apps/catalog      categories, areas, spaces, experiences, revisions, sessions, media, feed
-  apps/payments     fee config + price math (Phase 2: PaymentProvider, Stripe adapter)
+  apps/booking      seat holds, bookings, cancellations, attendance, calendar files
+  apps/payments     fee, PaymentProvider (Stripe Connect + fake), refunds, transfers, withholding, webhooks
+  apps/notifications push (Expo) + email, preferences, reminders
   apps/moderation   admin review queue, reason codes, append-only audit log, reports
-  apps/booking, reviews, messaging   empty until Phases 2-3
+  apps/reviews, messaging   empty until Phase 3
 mobile/    React Native + Expo SDK 57 (TypeScript, expo-router)
 docs/      phase deliverables, ERD, API outline, decisions
 ```
@@ -52,13 +57,15 @@ Test accounts created by `seed_cdmx`:
 |---|---|---|
 | Admin | `admin@seed.learnspace.local` / `learnspace-dev-2026` | http://localhost:8000/admin/ |
 | Learner | phone `55 0000 0001` | OTP code is printed in the server log (`sms.console`) |
-| Provider | phone `55 0000 0002` | Already ID-verified |
+| Provider | phone `55 0000 0002` | ID-verified, payouts and RFC set |
+
+Payments in development use `PAYMENT_GATEWAY=fake` (default): checkout shows a test-mode payment and the API simulates Stripe's webhook, so the full booking → refund → payout cycle works without Stripe keys. Admin 2FA is optional in development and enforced elsewhere (`manage.py enable_admin_2fa <email>`).
 
 Checks:
 
 ```bash
 cd backend && . .venv/bin/activate
-pytest                      # 112 tests (needs the PostGIS database above)
+pytest                      # 186 tests (needs the PostGIS database above)
 ruff check .
 python manage.py bench_feed # feed latency through the full Django stack
 ```

@@ -74,3 +74,14 @@ export function previewTotal(listedCents: number, feeBps: number) {
   const fee = Math.floor((listedCents * feeBps + 5000) / 10000);
   return { listed_cents: listedCents, fee_cents: fee, total_cents: listedCents + fee };
 }
+
+/** 573000 ms -> "9:33" for the seat-hold countdown. */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** Sum the listed part of a price for N seats (display only; the server computes the real breakdown). */
+export function seatsLabel(seats: number, lang = 'es'): string {
+  return lang === 'en' ? `${seats} spot${seats === 1 ? '' : 's'}` : `${seats} lugar${seats === 1 ? '' : 'es'}`;
+}
