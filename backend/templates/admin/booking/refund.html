@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Refund {{ booking.code }} — {{ booking.experience.title }}</h1>
+<p>Learner {{ booking.learner }} · paid <b>{{ booking.total_cents }}</b> centavos
+ (listed {{ booking.listed_cents }} + fee {{ booking.fee_cents }}) · listed still refundable: <b>{{ remaining_listed }}</b> centavos</p>
+{% if not payment %}<p class="errornote">No captured payment to refund.</p>{% else %}
+<form method="post">{% csrf_token %}{{ form.as_p }}<input type="submit" class="default" value="Queue refund"></form>{% endif %}
+{% endblock %}

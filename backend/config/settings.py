@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = env_str("SECRET_KEY", "dev-insecure-secret-key-change-me")
 DEBUG = env_bool("DEBUG", False)
+APP_ENV = env_str("APP_ENV", "development")  # development | staging | production
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1,10.0.2.2")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 DEV_CORS_ORIGINS = env_list("DEV_CORS_ORIGINS")  # Expo web preview only; ignored unless DEBUG
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     "apps.reviews",
     "apps.messaging",
     "apps.moderation",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -173,13 +175,41 @@ FFMPEG_BINARY = env_str("FFMPEG_BINARY", "ffmpeg")
 FFPROBE_BINARY = env_str("FFPROBE_BINARY", "ffprobe")
 
 # --- Marketplace --------------------------------------------------------------------
-DEFAULT_FEE_BPS = env_int("DEFAULT_FEE_BPS", 500)  # used only if no FeeConfig row exists
+DEFAULT_FEE_BPS = env_int("DEFAULT_FEE_BPS", 1000)  # used only if no FeeConfig row exists
 FEATURE_ONLINE_EXPERIENCES = env_bool("FEATURE_ONLINE_EXPERIENCES", False)
 FEED_DEFAULT_RADIUS_KM = 10
 FEED_MAX_RADIUS_KM = 50
 FEED_PAGE_SIZE = 20
 FEED_MAX_OFFSET = 1000
 MAP_MAX_PINS = 300
+
+# --- Payments -------------------------------------------------------------------
+PAYMENT_GATEWAY = env_str("PAYMENT_GATEWAY", "fake")  # "stripe" in staging/production
+STRIPE_SECRET_KEY = env_str("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = env_str("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRETS = env_list("STRIPE_WEBHOOK_SECRETS")  # platform endpoint secret, Connect endpoint secret
+# API version for ephemeral keys must match what @stripe/stripe-react-native expects; check its docs on upgrade.
+STRIPE_EPHEMERAL_KEY_API_VERSION = env_str("STRIPE_EPHEMERAL_KEY_API_VERSION", "2020-08-27")
+FAKE_GATEWAY_WEBHOOK_SECRET = env_str("FAKE_GATEWAY_WEBHOOK_SECRET", "fake-dev-secret")
+PAYMENTS_REQUIRE_KYC = env_bool("PAYMENTS_REQUIRE_KYC", True)
+SEAT_HOLD_MINUTES = env_int("SEAT_HOLD_MINUTES", 10)
+MAX_SEATS_PER_BOOKING = env_int("MAX_SEATS_PER_BOOKING", 6)
+APPROVAL_WINDOW_HOURS = env_int("APPROVAL_WINDOW_HOURS", 24)
+TRANSFER_DELAY_HOURS = env_int("TRANSFER_DELAY_HOURS", 48)  # after the (first) session ends
+NO_SHOW_DISPUTE_HOURS = env_int("NO_SHOW_DISPUTE_HOURS", 48)
+ATTENDANCE_WINDOW_HOURS = env_int("ATTENDANCE_WINDOW_HOURS", 48)
+PROVIDER_PENALTY_PAUSE_THRESHOLD = env_int("PROVIDER_PENALTY_PAUSE_THRESHOLD", 3)  # cancellations in 90 days
+REVIEW_WINDOW_DAYS = 14
+
+# --- Notifications ------------------------------------------------------------------
+PUSH_BACKEND = env_str("PUSH_BACKEND", "apps.notifications.push.ConsolePushBackend")
+EXPO_PUSH_ACCESS_TOKEN = env_str("EXPO_PUSH_ACCESS_TOKEN", "")
+TWILIO_ACCOUNT_SID = env_str("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = env_str("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = env_str("TWILIO_FROM_NUMBER", "")
+
+# --- Admin ---------------------------------------------------------------------------
+ADMIN_REQUIRE_2FA = env_bool("ADMIN_REQUIRE_2FA", APP_ENV != "development")
 
 # --- Jobs ---------------------------------------------------------------------------
 PROCRASTINATE_ON_APP_READY = "apps.core.jobs.on_app_ready"
@@ -213,3 +243,19 @@ if SENTRY_DSN:
         traces_sample_rate=float(env_str("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
         send_default_pii=False,
     )
+
+# --- Production guard rails: refuse to boot with development defaults. --------------
+if APP_ENV == "production":
+    from django.core.exceptions import ImproperlyConfigured
+
+    problems = []
+    if DEBUG:
+        problems.append("DEBUG must be off")
+    if SECRET_KEY.startswith("dev-insecure"):
+        problems.append("SECRET_KEY is the development default")
+    if FIELD_ENCRYPTION_KEYS.startswith("dev:"):
+        problems.append("FIELD_ENCRYPTION_KEYS is the development key")
+    if PAYMENT_GATEWAY != "stripe":
+        problems.append("PAYMENT_GATEWAY must be 'stripe'")
+    if problems:
+        raise ImproperlyConfigured("; ".join(problems))

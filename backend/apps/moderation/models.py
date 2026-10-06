@@ -50,6 +50,7 @@ class Report(BaseModel):
         REVIEW = "review"
         MESSAGE = "message"
         USER = "user"
+        BOOKING = "booking"
 
     class Status(models.TextChoices):
         OPEN = "open"

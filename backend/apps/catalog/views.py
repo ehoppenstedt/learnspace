@@ -92,8 +92,14 @@ class AreasView(PublicView):
         return Response(AreaSerializer(qs[:20], many=True).data)
 
 
-def _filters_from(params: dict) -> feed_service.FeedFilters:
+def _filters_from(params: dict, user=None) -> feed_service.FeedFilters:
+    interests = []
+    if user is not None and user.is_authenticated:
+        from apps.accounts.models import Interest
+
+        interests = list(Interest.objects.filter(user=user).values_list("category_id", flat=True))
     return feed_service.FeedFilters(
+        interest_category_ids=interests,
         origin=feed_service.resolve_origin(params.get("lat"), params.get("lng"), params.get("area")),
         radius_km=params["radius_km"],
         q=params["q"],
@@ -115,7 +121,7 @@ class FeedView(PublicView):
         query.is_valid(raise_exception=True)
         params = query.validated_data
         fee_bps = current_fee_bps()
-        items, next_offset = feed_service.feed(_filters_from(params), fee_bps, offset=params["offset"])
+        items, next_offset = feed_service.feed(_filters_from(params, request.user), fee_bps, offset=params["offset"])
         return Response({
             "results": ExperienceCardSerializer(items, many=True, context={"fee_bps": fee_bps}).data,
             "next_offset": next_offset,
@@ -138,8 +144,14 @@ class MapView(PublicView):
 
 
 def can_see_exact_location(user, experience: Experience) -> bool:
-    """Exact address is for the owner now; Phase 2 adds learners with a confirmed booking."""
-    return bool(user and user.is_authenticated and experience.provider_id == user.pk)
+    """Owner, or a learner with a confirmed (or attended) booking."""
+    if not (user and user.is_authenticated):
+        return False
+    if experience.provider_id == user.pk:
+        return True
+    from apps.booking.models import Booking
+
+    return Booking.objects.filter(learner=user, experience=experience, status__in=["confirmed", "completed"]).exists()
 
 
 class ExperienceDetailView(PublicView):
@@ -401,6 +413,8 @@ class ProviderSessionDetailView(ProviderView):
 
     def patch(self, request, pk):
         session = self.get_object(pk)
+        if session.cohort_id:
+            raise DomainError("cohort_session", _("La capacidad de un curso se define por grupo."))
         capacity = request.data.get("capacity")
         if not isinstance(capacity, int) or capacity < max(session.seats_booked, 1) or capacity > 500:
             raise DomainError("invalid_capacity", _("Capacidad inválida."), status.HTTP_400_BAD_REQUEST)

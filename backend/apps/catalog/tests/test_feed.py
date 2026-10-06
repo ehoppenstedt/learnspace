@@ -66,15 +66,15 @@ def test_category_language_filters(api, three):
 
 
 def test_price_filter_uses_total_including_fee(api, three):
-    # Coyoacán: listed 300.00 -> total 315.00 at 5%.
+    # Coyoacán: listed 300.00 -> total 330.00 at 10%.
     base = {"lat": ROMA[0], "lng": ROMA[1], "radius_km": 30}
-    assert "Guitarra en Coyoacán" in _titles(api.get("/api/v1/experiences", {**base, "price_max": 31500}))
-    assert "Guitarra en Coyoacán" not in _titles(api.get("/api/v1/experiences", {**base, "price_max": 31499}))
+    assert "Guitarra en Coyoacán" in _titles(api.get("/api/v1/experiences", {**base, "price_max": 33000}))
+    assert "Guitarra en Coyoacán" not in _titles(api.get("/api/v1/experiences", {**base, "price_max": 32999}))
 
 
 def test_card_shows_total_price(api, three):
     res = api.get("/api/v1/experiences", {"q": "Guitarra"})
-    assert res.data["results"][0]["price"] == {"listed_cents": 30000, "fee_cents": 1500, "total_cents": 31500, "currency": "MXN"}
+    assert res.data["results"][0]["price"] == {"listed_cents": 30000, "fee_cents": 3000, "total_cents": 33000, "currency": "MXN"}
 
 
 def test_day_and_time_window_filter(api, three):
@@ -178,7 +178,7 @@ def test_pagination(api, provider_user):
 
 def test_config_and_areas(api):
     config = api.get("/api/v1/config").data
-    assert config["fee_bps"] == 500
+    assert config["fee_bps"] == 1000
     assert len(config["categories"]) == 15
     assert config["features"]["online_experiences"] is False
     assert api.get("/api/v1/geo/areas", {"q": "coyoacan"}).data[0]["slug"] == "coyoacan-centro"

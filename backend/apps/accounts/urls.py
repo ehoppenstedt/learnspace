@@ -10,6 +10,8 @@ urlpatterns = [
     path("auth/refresh", views.RefreshView.as_view()),
     path("auth/logout", views.LogoutView.as_view()),
     path("me", views.MeView.as_view()),
+    path("me/data-export", views.DataExportView.as_view()),
+    path("me/data-export/<str:token>", views.DataExportDownloadView.as_view()),
     path("me/complete-profile", views.CompleteProfileView.as_view()),
     path("me/phone", views.PhoneRequestView.as_view()),
     path("me/phone/verify", views.PhoneVerifyView.as_view()),

@@ -57,9 +57,13 @@ def approve(admin, revision: ExperienceRevision, note: str = "") -> ExperienceRe
         experience = Experience.objects.select_for_update().get(pk=revision.experience_id)
         before = catalog.snapshot(experience) | {"status": experience.status}
         if revision.kind == ExperienceRevision.Kind.INITIAL:
-            if not experience.provider.is_verified:
-                raise DomainError("provider_not_verified", _("Verifica la identidad del proveedor antes de aprobar."),
-                                  status.HTTP_400_BAD_REQUEST)
+            from apps.payments.services import provider_ready_for_payouts
+
+            ready, missing = provider_ready_for_payouts(experience.provider)
+            if not ready:
+                code = "provider_not_verified" if "identity" in missing else "provider_payments_incomplete"
+                raise DomainError(code, _("El proveedor aún no completa: %(m)s.") % {"m": ", ".join(missing)},
+                                  status.HTTP_400_BAD_REQUEST, fields={"missing": missing})
             experience.status = Experience.Status.LIVE
             experience.published_at = experience.published_at or timezone.now()
             experience.save(update_fields=["status", "published_at", "updated_at"])

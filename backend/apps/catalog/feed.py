@@ -14,11 +14,13 @@ from django.conf import settings
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Case, Exists, OuterRef, Prefetch, Q, Value, When
 from django.utils import timezone
 
 from apps.catalog.models import Area, Experience, ExperienceMedia, Session
 from apps.payments.pricing import total_cents_expression
+
+BANDS_M = (2000, 5000, 10000)
 
 
 @dataclass
@@ -35,6 +37,7 @@ class FeedFilters:
     modality: str | None = None
     language: str | None = None
     sort: str = "distance"
+    interest_category_ids: list[int] = field(default_factory=list)
 
 
 def resolve_origin(lat: float | None, lng: float | None, area_slug: str | None) -> Point | None:
@@ -106,6 +109,15 @@ def feed(filters: FeedFilters, fee_bps: int, offset: int = 0, limit: int = setti
         # Sphere (not spheroid) distance: <0.5% error at city scale, ~3x cheaper.
         qs = qs.filter(within).annotate(distance=Distance("point_public", filters.origin, spheroid=False))
         order = ["distance", "next_session_at"] if filters.sort == "distance" else ["next_session_at", "distance"]
+        if filters.sort == "distance" and filters.interest_category_ids:
+            # Personalization without hiding anything: within the same distance band
+            # (<2 km, <5 km, <10 km, farther), the learner's interests come first.
+            qs = qs.annotate(
+                band=Case(*[When(point_public__dwithin=(filters.origin, D(m=m)), then=Value(i)) for i, m in enumerate(BANDS_M)],
+                          default=Value(len(BANDS_M))),
+                not_interest=Case(When(category_id__in=filters.interest_category_ids, then=Value(0)), default=Value(1)),
+            )
+            order = ["band", "not_interest", "distance", "next_session_at"]
         rows = list(qs.order_by(*order, "id").values_list("id", "distance")[offset: offset + limit + 1])
     else:
         rows = [(pk, None) for pk in qs.order_by("next_session_at", "id").values_list("id", flat=True)[offset: offset + limit + 1]]

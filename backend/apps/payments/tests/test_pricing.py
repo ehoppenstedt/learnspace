@@ -57,8 +57,8 @@ class TestPrice:
 
 @pytest.mark.django_db
 class TestFeeConfig:
-    def test_migration_seeds_five_percent(self):
-        assert current_fee_bps() == 500
+    def test_launch_fee_is_ten_percent(self):
+        assert current_fee_bps() == 1000
 
     def test_latest_effective_row_wins_and_future_rows_are_ignored(self):
         FeeConfig.objects.create(fee_bps=700, effective_from=timezone.now())

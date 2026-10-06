@@ -12,3 +12,4 @@ pillow-heif==1.8.0
 phonenumbers==9.0.40
 gunicorn==26.2.0
 sentry-sdk==2.71.0
+stripe==16.0.0

@@ -130,6 +130,12 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
+    def delete(self, request):
+        from apps.accounts.privacy import delete_account
+
+        delete_account(request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def get(self, request):
         LearnerProfile.objects.get_or_create(user=request.user)
         return Response(MeSerializer(request.user).data)
@@ -290,3 +296,30 @@ class VerificationDocsView(APIView):
                 provider.verification_status = ProviderProfile.Verification.PENDING
                 provider.save(update_fields=["verification_status"])
         return Response({"id": doc.id, "doc_type": doc.doc_type, "status": doc.status}, status=status.HTTP_201_CREATED)
+
+
+class DataExportView(APIView):
+    def post(self, request):
+        from apps.accounts.tasks import data_export_task
+
+        data_export_task.defer(user_id=str(request.user.pk))
+        return Response({"status": "queued"}, status=status.HTTP_202_ACCEPTED)
+
+
+class DataExportDownloadView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
+
+    def get(self, request, token):
+        from django.core import signing
+        from django.http import Http404, HttpResponse
+
+        from apps.accounts.privacy import read_export
+
+        try:
+            body = read_export(token)
+        except (signing.BadSignature, FileNotFoundError):
+            raise Http404
+        response = HttpResponse(body, content_type="application/json")
+        response["Content-Disposition"] = 'attachment; filename="mis-datos.json"'
+        return response

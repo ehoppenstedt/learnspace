@@ -80,6 +80,10 @@ class Command(BaseCommand):
     def _reset(self):
         seed_users = User.objects.filter(email__endswith=SEED_DOMAIN)
         experiences = Experience.objects.filter(provider__user__in=seed_users)
+        from apps.booking.models import Booking
+
+        if Booking.objects.filter(experience__in=experiences).exists():
+            raise CommandError("Seed data has bookings; drop and recreate the database instead of --reset.")
         Session.objects.filter(experience__in=experiences).delete()
         Cohort.objects.filter(experience__in=experiences).delete()
         ExperienceRevision.objects.filter(experience__in=experiences).delete()
@@ -87,6 +91,10 @@ class Command(BaseCommand):
         experiences.delete()
         Space.objects.filter(owner__in=seed_users).delete()
         MediaAsset.objects.filter(owner__in=seed_users).delete()
+        from apps.payments.models import PaymentAccount, ProviderTaxProfile
+
+        PaymentAccount.objects.filter(provider__user__in=seed_users).delete()
+        ProviderTaxProfile.objects.filter(provider__user__in=seed_users).delete()
         ProviderProfile.objects.filter(user__in=seed_users).delete()
         # Users referenced by the append-only audit log are kept (they're seed-only anyway).
         seed_users.filter(is_staff=False).delete()
@@ -106,10 +114,11 @@ class Command(BaseCommand):
         admin.save()
         self._user(f"learner@{SEED_DOMAIN}", "+525500000001", "Lucía", "Aprendiz")
         provider = self._user(f"provider@{SEED_DOMAIN}", "+525500000002", "Pablo", "Maestro")
-        ProviderProfile.objects.get_or_create(user=provider, defaults={
+        profile, _ = ProviderProfile.objects.get_or_create(user=provider, defaults={
             "display_name": "Taller de Pablo", "verification_status": "verified",
             "about_me": "Doy clases desde hace 10 años. Me encanta enseñar a principiantes.",
         })
+        self._payout_ready(profile)
 
     def _providers(self, rng, count):
         providers = []
@@ -125,8 +134,18 @@ class Command(BaseCommand):
                 "about_school": "" if kind == "individual" else f"{name} es un espacio independiente para aprender haciendo.",
                 "rating_avg": round(rng.uniform(4.3, 5.0), 2), "rating_count": rng.randint(0, 120),
             })
+            self._payout_ready(profile)
             providers.append(profile)
         return providers
+
+    def _payout_ready(self, profile):
+        """Seed providers can publish and receive (fake) payouts in local development."""
+        from apps.payments.models import PaymentAccount, ProviderTaxProfile
+
+        PaymentAccount.objects.get_or_create(provider=profile, defaults={
+            "gateway": "fake", "external_id": f"acct_seed_{profile.pk.hex[:12]}", "kyc_status": "verified",
+            "charges_enabled": True, "payouts_enabled": True})
+        ProviderTaxProfile.objects.get_or_create(provider=profile, defaults={"rfc": "XAXX010101000", "legal_name": profile.display_name})
 
     def _image(self, owner, slug, w=1200, h=900):
         asset = MediaAsset(owner=owner, kind="image", content_type="image/jpeg", declared_bytes=0, status="ready",

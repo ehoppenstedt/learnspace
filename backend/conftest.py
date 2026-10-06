@@ -34,13 +34,49 @@ def _test_settings(settings, tmp_path):
 
 @pytest.fixture(autouse=True)
 def jobs():
-    """Background jobs go to an in-memory queue; tests run them explicitly."""
+    """Background jobs go to an in-memory queue; tests run them explicitly with run_jobs()."""
     from procrastinate import testing
     from procrastinate.contrib.django import app
 
     connector = testing.InMemoryConnector()
     with app.replace_connector(connector):
         yield connector
+
+
+@pytest.fixture(autouse=True)
+def _commit_hooks_run_immediately(monkeypatch):
+    """Tests run inside a transaction that never commits; behave as if it committed."""
+    from django.db import transaction
+
+    monkeypatch.setattr(transaction, "on_commit", lambda func, using=None, robust=False: func())
+
+
+def run_jobs(connector, rounds=5) -> list[str]:
+    """Execute queued jobs in-process (jobs may enqueue more jobs)."""
+    from procrastinate.contrib.django import app
+
+    ran = []
+    for _ in range(rounds):
+        todo = [j for j in connector.jobs.values() if j["status"] == "todo"]
+        if not todo:
+            break
+        for job in todo:
+            job["status"] = "succeeded"
+            app.tasks[job["task_name"]](**job["args"])
+            ran.append(job["task_name"])
+    return ran
+
+
+@pytest.fixture(autouse=True)
+def _fake_gateway(settings):
+    from apps.notifications.push import LocmemPushBackend
+    from apps.payments.gateways.fake import FakeGateway
+
+    settings.PAYMENT_GATEWAY = "fake"
+    settings.PUSH_BACKEND = "apps.notifications.push.LocmemPushBackend"
+    FakeGateway.calls, FakeGateway.accounts, FakeGateway.fail_next = [], {}, set()
+    LocmemPushBackend.outbox = []
+    yield
 
 
 @pytest.fixture
@@ -66,8 +102,17 @@ def learner(db):
 @pytest.fixture
 def provider_user(db):
     user = make_user(email="maestra@example.com", phone="+525598765432")
-    ProviderProfile.objects.create(user=user, display_name="Taller Luz", verification_status="verified")
+    make_payout_ready(ProviderProfile.objects.create(user=user, display_name="Taller Luz", verification_status="verified"))
     return user
+
+
+def make_payout_ready(provider):
+    from apps.payments.models import PaymentAccount, ProviderTaxProfile
+
+    PaymentAccount.objects.create(provider=provider, gateway="fake", external_id=f"acct_fake_{provider.pk.hex[:10]}",
+                                  kyc_status="verified", charges_enabled=True, payouts_enabled=True)
+    ProviderTaxProfile.objects.create(provider=provider, rfc="LOPA900517AB1", legal_name="Ana López")
+    return provider
 
 
 @pytest.fixture
@@ -123,3 +168,39 @@ def standard_policy(db):
 
 def point(lat, lng):
     return Point(lng, lat, srid=4326)
+
+
+# ---------------------------------------------------------------- booking helpers
+
+
+def post_fake_event(client, kind: str, object_id: str, **data):
+    from apps.payments.gateways.fake import SIGNATURE_HEADER, FakeGateway
+
+    body = FakeGateway.build_event(kind, object_id, **data)
+    return client.generic("POST", "/api/v1/webhooks/payments/fake", body, content_type="application/json",
+                          **{f"HTTP_{SIGNATURE_HEADER.upper().replace('-', '_')}": FakeGateway.sign(body)})
+
+
+def hold_and_checkout(api, learner, session=None, cohort=None, seats=1):
+    api.force_authenticate(learner)
+    payload = {"seats": seats, **({"session_id": str(session.pk)} if session else {"cohort_id": str(cohort.pk)})}
+    hold = api.post("/api/v1/holds", payload, format="json")
+    assert hold.status_code == 201, hold.content
+    res = api.post("/api/v1/bookings", {"hold_id": hold.data["hold_id"]}, format="json")
+    assert res.status_code == 201, res.content
+    from apps.booking.models import Booking
+
+    return Booking.objects.get(pk=res.data["booking"]["id"])
+
+
+def pay(api, jobs, booking, kind="payment_succeeded"):
+    payment = booking.payments.get()
+    res = post_fake_event(api, kind, payment.external_id, charge_id=f"ch_{payment.pk.hex[:8]}", method="card")
+    assert res.status_code == 200
+    run_jobs(jobs)
+    booking.refresh_from_db()
+    return booking
+
+
+def book(api, jobs, learner, session, seats=1):
+    return pay(api, jobs, hold_and_checkout(api, learner, session=session, seats=seats))

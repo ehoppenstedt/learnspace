@@ -52,10 +52,10 @@ def test_space_gets_public_point_and_area(api, new_provider):
     assert api.post("/api/v1/provider/spaces", {"name": "S", "address_line": "x", "lat": 40.7, "lng": -74}).status_code == 400
 
 
-def test_full_creation_review_and_publication(api, new_provider, admin_user):
+def test_full_creation_review_and_publication(api, new_provider, admin_user, settings):
     draft = _create_draft(api, new_provider)
     assert draft["status"] == "draft"
-    assert draft["price"]["total_cents"] == 68250
+    assert draft["price"]["total_cents"] == 71500
 
     # Submitting without dates fails with field errors.
     res = api.post(f"/api/v1/provider/experiences/{draft['id']}/submit")
@@ -86,6 +86,22 @@ def test_full_creation_review_and_publication(api, new_provider, admin_user):
     doc = ProviderVerification.objects.get(pk=res.data["id"])
     moderation.decide_verification(admin_user, doc, approve_doc=True)
     assert ProviderProfile.objects.get(pk=new_provider.pk).is_verified
+
+    # Still blocked: no payout account (KYC) and no RFC yet.
+    with pytest.raises(DomainError) as exc:
+        moderation.approve(admin_user, revision)
+    assert exc.value.code == "provider_payments_incomplete"
+    assert set(exc.value.fields["missing"]) == {"payment_account", "tax_profile"}
+
+    assert api.put("/api/v1/provider/tax-profile", {"person_type": "fisica", "rfc": "lopa900517ab1",
+                                                    "legal_name": "Ana López Pérez"}).status_code == 200
+    url = api.post("/api/v1/provider/payments/onboarding").data["url"]
+    account_id = url.rstrip("/").split("/")[-1]
+    settings.DEBUG = True
+    assert api.post(f"/api/v1/dev/onboarding/{account_id}/complete").status_code == 200
+    status_res = api.get("/api/v1/provider/payments/onboarding").data
+    assert status_res["ready_to_publish"] is True, status_res
+    assert status_res["payment_account"]["kyc_status"] == "verified"
 
     moderation.approve(admin_user, revision, note="Se ve muy bien")
     experience = Experience.objects.get(pk=draft["id"])

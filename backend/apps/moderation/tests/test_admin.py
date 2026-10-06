@@ -30,7 +30,7 @@ def test_queue_defaults_to_pending_and_renders_decision_page(client, admin_user,
     page = client.get(f"/admin/catalog/experiencerevision/{pending.pk}/change/")
     body = page.content.decode()
     assert page.status_code == 200
-    assert "$525.00 MXN" in body  # total incl. 5% fee shown to the reviewer
+    assert "$550.00 MXN" in body  # total incl. 10% fee shown to the reviewer
     assert "Submit decision" in body
 
 
@@ -71,16 +71,16 @@ def test_fee_change_is_audited_and_rows_are_immutable(client, admin_user):
     client.force_login(admin_user)
     when = (timezone.localtime() + timedelta(days=1)).strftime("%Y-%m-%d")
     res = client.post("/admin/payments/feeconfig/add/", {
-        "fee_bps": 1000, "effective_from_0": when, "effective_from_1": "00:00:00", "note": "test"})
+        "fee_bps": 1200, "effective_from_0": when, "effective_from_1": "00:00:00", "note": "test"})
     assert res.status_code == 302, res.content.decode()[:500]
     action = AdminAction.objects.get(action="config.create", target_type="payments.feeconfig")
-    assert action.after["fee_bps"] == 1000
+    assert action.after["fee_bps"] == 1200
     from apps.payments.models import FeeConfig
 
-    row = FeeConfig.objects.get(fee_bps=1000)
+    row = FeeConfig.objects.get(fee_bps=1200)
     assert client.get(f"/admin/payments/feeconfig/{row.pk}/change/").status_code in (200, 403)
     res = client.post(f"/admin/payments/feeconfig/{row.pk}/change/", {"fee_bps": 1, "effective_from_0": when, "effective_from_1": "00:00:00"})
-    assert FeeConfig.objects.get(pk=row.pk).fee_bps == 1000
+    assert FeeConfig.objects.get(pk=row.pk).fee_bps == 1200
 
 
 def test_policy_admin_rejects_gaps(client, admin_user):

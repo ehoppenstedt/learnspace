@@ -230,3 +230,12 @@ class Interest(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "category"], name="uniq_interest")]
+
+
+class AdminTOTPDevice(BaseModel):
+    """Second factor for staff logins to the admin (RFC 6238 TOTP, 30 s, 6 digits)."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="totp_device")
+    secret = EncryptedTextField()
+    confirmed = models.BooleanField(default=False)
+    last_used_step = models.BigIntegerField(default=0, help_text="Prevents replaying a code within its window")
