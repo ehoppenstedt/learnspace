@@ -1,0 +1,43 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block title %}Review: {{ experience.title }}{% endblock %}
+{% block content %}
+<style>
+  .rq-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rq-media { display:flex; gap:8px; flex-wrap:wrap; }
+  .rq-media img { height:140px; border-radius:8px; object-fit:cover; }
+  table.rq-diff td { vertical-align:top; max-width:420px; white-space:pre-wrap; }
+  tr.changed td { background: #fff4d6; }
+  .rq-badge { display:inline-block; padding:2px 8px; border-radius:10px; background:#eee; }
+  .rq-warn { color:#a40000; font-weight:bold; }
+</style>
+<h1>{{ experience.title|default:"(untitled)" }} <span class="rq-badge">{{ revision.get_kind_display }} · r{{ revision.number }}</span></h1>
+<p>
+  Provider: <b>{{ provider.display_name }}</b> ({{ provider.user.email }}) —
+  verification: <span class="rq-badge">{{ provider.verification_status }}</span>
+  {% if not provider.is_verified %}<span class="rq-warn"> · ID not verified: approval is blocked</span>{% endif %}
+  · <a href="{% url 'admin:accounts_providerprofile_change' provider.pk %}">open provider</a>
+</p>
+<p>Price shown to learners: <b>${{ price_total }} MXN</b> (listed ${{ price_listed }} + fee ${{ price_fee }})</p>
+
+<div class="rq-media">{% for url in media_urls %}<img src="{{ url }}" alt="">{% empty %}<i>No media</i>{% endfor %}</div>
+
+<h2>Content{% if revision.kind == "edit" %} — proposed vs live{% endif %}</h2>
+<table class="rq-diff">
+  <thead><tr><th>Field</th>{% if revision.kind == "edit" %}<th>Live</th>{% endif %}<th>Submitted</th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr class="{% if row.changed %}changed{% endif %}"><td><b>{{ row.field }}</b></td>{% if revision.kind == "edit" %}<td>{{ row.live }}</td>{% endif %}<td>{{ row.proposed }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Upcoming sessions ({{ sessions|length }})</h2>
+<ul>{% for s in sessions %}<li>{{ s.starts_at|date:"D d M Y H:i" }} – {{ s.ends_at|date:"H:i" }} · {{ s.capacity }} seats</li>{% empty %}<li class="rq-warn">No future sessions</li>{% endfor %}</ul>
+
+<h2>Decision</h2>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" class="default" value="Submit decision">
+</form>
+{% endblock %}

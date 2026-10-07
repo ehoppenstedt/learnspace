@@ -1,0 +1,12 @@
+# Railway: two services from this repo (API and worker) + a PostGIS database.
+# Set the hard usage limit in Railway > Workspace > Usage (USD 45), see docs/deploy.md.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+watchPatterns = ["backend/**"]
+
+[deploy]
+startCommand = "sh -c 'python manage.py migrate --noinput && python manage.py createcachetable && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 30 --access-logfile -'"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"

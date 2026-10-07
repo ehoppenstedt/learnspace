@@ -1,0 +1,41 @@
+# Local development stack: PostGIS + API + background worker.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: learnspace
+      POSTGRES_PASSWORD: learnspace
+      POSTGRES_DB: learnspace
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learnspace"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py createcachetable && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --reload"
+    env_file: ./backend/.env.example
+    environment:
+      DATABASE_URL: postgis://learnspace:learnspace@db:5432/learnspace
+      ALLOWED_HOSTS: "*"
+      FIELD_ENCRYPTION_KEYS: "dev:ZGV2LW9ubHkta2V5LWRvLW5vdC11c2UtaW4tcHJvZCE="
+    ports: ["8000:8000"]
+    volumes: ["./backend:/app"]
+    depends_on:
+      db: {condition: service_healthy}
+
+  worker:
+    build: ./backend
+    command: python manage.py procrastinate worker
+    env_file: ./backend/.env.example
+    environment:
+      DATABASE_URL: postgis://learnspace:learnspace@db:5432/learnspace
+      FIELD_ENCRYPTION_KEYS: "dev:ZGV2LW9ubHkta2V5LWRvLW5vdC11c2UtaW4tcHJvZCE="
+    volumes: ["./backend:/app"]
+    depends_on:
+      db: {condition: service_healthy}
+
+volumes:
+  pgdata:

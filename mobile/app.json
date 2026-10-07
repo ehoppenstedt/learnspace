@@ -1,0 +1,98 @@
+{
+  "expo": {
+    "name": "learnspace",
+    "slug": "learnspace",
+    "scheme": "learnspace",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.learnspace.app",
+      "supportsTablet": false,
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para mostrarte experiencias de aprendizaje cerca de ti.",
+        "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos para que subas imágenes de tus experiencias.",
+        "NSCameraUsageDescription": "Necesitamos la cámara para fotografiar tus experiencias o tu identificación."
+      }
+    },
+    "android": {
+      "package": "com.learnspace.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-video",
+      "expo-font",
+      "expo-image",
+      "expo-apple-authentication",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Usamos tu ubicación para mostrarte experiencias de aprendizaje cerca de ti."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Necesitamos acceso a tus fotos para que subas imágenes de tus experiencias."
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID"
+        }
+      ],
+      "expo-web-browser",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.learnspace.app",
+          "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5A31F4"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "http://localhost:8000/api/v1",
+      "googleWebClientId": "",
+      "googleIosClientId": "",
+      "eas": {
+        "projectId": ""
+      },
+      "stripeMerchantIdentifier": "merchant.com.learnspace.app"
+    }
+  }
+}
