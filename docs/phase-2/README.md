@@ -122,7 +122,7 @@ Real renders (web preview at phone size, against the seeded API; photos are gene
 |---|---|---|
 | 1-3 | Withholding rates, electronic invoicing (CFDI), Stripe account | **Deferred.** The app runs in test mode for user testing: test payment sheet (simulated approve/decline, no card data), instant test KYC, $0 withholding labeled "por definir", placeholder receipts and monthly statements marked "no es CFDI". Switching each to real is listed in [going-live.md](../going-live.md). |
 | 4 | Provider cancellation penalty | **Confirmed:** flag + auto-pause at 3 cancellations in 90 days, no money penalty. |
-| 5 | Platform default for "approve learners below X score" | **Off by default** (each provider opts in per experience). It has no effect until conduct scores exist (Phase 3). |
+| 5 | Platform default for "approve learners below X score" | **Off by default** (each provider opts in per experience). It has no effect until conduct scores exist (Phase 3). Related idea you liked, "approve every new learner manually", is in the [backlog](../backlog.md) for a later phase. |
 
 ## 8. Phase 3 preview
 
