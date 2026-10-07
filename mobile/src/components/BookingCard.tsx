@@ -34,7 +34,7 @@ export function BookingCard({ booking }: { booking: Booking }) {
           {booking.review_pending ? <Badge label={t('bookings.reviewPending')} bg={colors.brandSoft} fg={colors.brand} /> : null}
         </View>
         <Text style={type.heading} numberOfLines={2}>{booking.experience.title}</Text>
-        <Text style={type.small}>{formatSessionDate(booking.starts_at, i18n.language)} · {booking.location?.neighborhood ?? ''}</Text>
+        <Text style={type.small}>{formatSessionDate(booking.starts_at, i18n.language)} · {booking.location?.online ? t('online.label') : booking.location?.neighborhood ?? ''}</Text>
       </View>
     </Pressable>
   );

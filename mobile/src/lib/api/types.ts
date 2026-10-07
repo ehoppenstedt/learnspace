@@ -62,9 +62,12 @@ export type ProviderPublic = {
 export type SessionPublic = { id: string; starts_at: string; ends_at: string; seats_left: number; cohort_id: string | null };
 export type CohortPublic = { id: string; label: string; seats_left: number; sessions: { starts_at: string; ends_at: string }[] };
 
+export type OnlineLocation = { online: true; approximate: boolean; url: string | null };
+
 export type Location =
-  | { approximate: true; lat: number; lng: number; radius_m: number }
-  | { approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null };
+  | { online?: undefined; approximate: true; lat: number; lng: number; radius_m: number }
+  | { online?: undefined; approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null }
+  | OnlineLocation;
 
 export type ExperienceDetail = ExperienceCard & {
   what_you_learn: string;
@@ -211,12 +214,13 @@ export type Booking = {
   seats: number;
   starts_at: string;
   ends_at: string;
-  experience: { id: string; title: string; cover: Media | null; category: string | null; offering_type: OfferingType };
+  experience: { id: string; title: string; cover: Media | null; category: string | null; offering_type: OfferingType; modality: Modality };
   sessions: { id: string; starts_at: string; ends_at: string; status: string; attendance: string }[];
   price: { listed_cents: number; fee_cents: number; total_cents: number; fee_bps: number; currency: 'MXN' };
   location:
-    | { approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null; neighborhood: string; space_name: string }
-    | { approximate: true; lat: number; lng: number; neighborhood: string }
+    | { online?: undefined; approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null; neighborhood: string; space_name: string }
+    | { online?: undefined; approximate: true; lat: number; lng: number; neighborhood: string }
+    | OnlineLocation
     | null;
   provider: { id: string; display_name: string };
   policy: { code: string; name_es: string; name_en: string; rules: PolicyRule[] };
@@ -286,3 +290,61 @@ export type Earnings = {
 
 export type SavedCard = { id: string; brand: string; last4: string; exp_month: number; exp_year: number };
 export type NotificationPrefs = { push: boolean; email: boolean; reminders: boolean };
+
+// ---------------------------------------------------------------- Phase 3
+
+export type PublicReview = {
+  id: string;
+  author: string;
+  overall: number;
+  learning: number;
+  facilitator: number;
+  facilities: number | null;
+  text: string;
+  date: string;
+};
+
+export type ReviewSummary = {
+  overall: string | null;
+  learning: string | null;
+  facilitator: string | null;
+  facilities: string | null;
+  count: number;
+};
+
+export type ExperienceReviews = { summary: ReviewSummary; results: PublicReview[]; next_offset: number | null };
+
+export type ProviderReview = PublicReview & { experience: string; private_feedback: string; hidden: boolean };
+
+export type PendingReviews = {
+  reviews: { booking_id: string; experience: string; modality: Modality; ended_at: string; closes_at: string }[];
+  conduct_ratings: { booking_id: string; experience: string; learner: string; ended_at: string; closes_at: string }[];
+};
+
+export type ConductRatingItem = {
+  id: string;
+  experience: string;
+  respect: number;
+  punctuality: number;
+  date: string;
+  excluded: boolean;
+  appeal: { status: 'open' | 'upheld' | 'overturned'; decision_note: string } | null;
+};
+
+export type MyConduct = { score: string | null; count: number; ratings: ConductRatingItem[] };
+
+export type Thread = {
+  id: string;
+  experience: { id: string; title: string; cover: Media | null };
+  role: 'learner' | 'provider';
+  counterpart: string;
+  counterpart_id: string;
+  booking_id: string | null;
+  booked: boolean;
+  last_message: { body: string; at: string; mine: boolean } | null;
+  unread: boolean;
+};
+
+export type ChatMessage = { id: string; body: string; at: string; mine: boolean; flagged: boolean };
+
+export type ReportTarget = 'experience' | 'review' | 'message' | 'user';

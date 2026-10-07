@@ -64,7 +64,7 @@ class BookingSerializer(serializers.ModelSerializer):
         e = obj.experience
         cover = next((m for m in (media_service.public_media(em.media) for em in e.experiencemedia_set.select_related("media")[:1]) if m), None)
         return {"id": str(e.pk), "title": e.title, "cover": cover, "category": e.category.name if e.category else None,
-                "offering_type": e.offering_type}
+                "offering_type": e.offering_type, "modality": e.modality}
 
     def get_sessions(self, obj):
         return [

@@ -85,3 +85,14 @@ export function formatCountdown(ms: number): string {
 export function seatsLabel(seats: number, lang = 'es'): string {
   return lang === 'en' ? `${seats} spot${seats === 1 ? '' : 's'}` : `${seats} lugar${seats === 1 ? '' : 'es'}`;
 }
+
+/** Chat-list timestamp: time today, short date otherwise (Mexico City time). */
+export function formatRelative(iso: string, lang = 'es', now: Date = new Date()): string {
+  const locale = lang === 'en' ? 'en-US' : 'es-MX';
+  const d = new Date(iso);
+  const dayKey = (x: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(x);
+  if (dayKey(d) === dayKey(now)) {
+    return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ }).format(d);
+  }
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: TZ }).format(d).replace(/\./g, '');
+}

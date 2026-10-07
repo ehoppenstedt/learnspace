@@ -6,8 +6,8 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 |---|---|---|
 | 0 — Design | Done | [docs/phase-0](docs/phase-0/00-README.md) |
 | 1 — Auth, discovery, provider creation, admin review | Done | [docs/phase-1](docs/phase-1/README.md) |
-| 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | **Done, awaiting approval** | [docs/phase-2](docs/phase-2/README.md) |
-| 3 — Reviews, conduct scores, messaging, online experiences | Not started | |
+| 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | Done (test mode) | [docs/phase-2](docs/phase-2/README.md) |
+| 3 — Reviews, conduct scores, messaging, online experiences | **Done, awaiting approval** | [docs/phase-3](docs/phase-3/README.md) |
 
 Deploying: [docs/deploy.md](docs/deploy.md). What runs in test mode and how to switch it to real: [docs/going-live.md](docs/going-live.md).
 
@@ -21,7 +21,8 @@ backend/   Django 5.2 + DRF modular monolith, PostgreSQL 16 + PostGIS 3.4
   apps/payments     fee, PaymentProvider (Stripe Connect + fake), refunds, transfers, withholding, webhooks
   apps/notifications push (Expo) + email, preferences, reminders
   apps/moderation   admin review queue, reason codes, append-only audit log, reports
-  apps/reviews, messaging   empty until Phase 3
+  apps/reviews      double-blind reviews, conduct ratings, appeals
+  apps/messaging    learner↔host threads, contact-info detection
 mobile/    React Native + Expo SDK 57 (TypeScript, expo-router)
 docs/      phase deliverables, ERD, API outline, decisions
 ```
@@ -56,8 +57,8 @@ Test accounts created by `seed_cdmx`:
 | Role | Login | Notes |
 |---|---|---|
 | Admin | `admin@seed.learnspace.local` / `learnspace-dev-2026` | http://localhost:8000/admin/ |
-| Learner | phone `55 0000 0001` | OTP code is printed in the server log (`sms.console`) |
-| Provider | phone `55 0000 0002` | ID-verified, payouts and RFC set |
+| Learner | phone `55 0000 0001` | OTP code is printed in the server log (`sms.console`). Has a class to review and a conversation |
+| Provider | phone `55 0000 0002` | ID-verified, payouts and RFC set. Has a learner to rate and an online experience |
 
 Payments in development use `PAYMENT_GATEWAY=fake` (default): checkout shows a test-mode payment and the API simulates Stripe's webhook, so the full booking → refund → payout cycle works without Stripe keys. Admin 2FA is optional in development and enforced elsewhere (`manage.py enable_admin_2fa <email>`).
 
@@ -65,7 +66,7 @@ Checks:
 
 ```bash
 cd backend && . .venv/bin/activate
-pytest                      # 186 tests (needs the PostGIS database above)
+pytest                      # 234 tests (needs the PostGIS database above)
 ruff check .
 python manage.py bench_feed # feed latency through the full Django stack
 ```

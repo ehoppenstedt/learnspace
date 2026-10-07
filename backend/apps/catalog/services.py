@@ -253,6 +253,8 @@ def submission_errors(experience: Experience, payload: dict) -> dict:
         errors["space_id"] = _("Agrega la ubicación.")
     if payload.get("modality") == Experience.Modality.ONLINE and not payload.get("online_url"):
         errors["online_url"] = _("Agrega el enlace de la sesión en línea.")
+    elif payload.get("modality") == Experience.Modality.ONLINE and not str(payload["online_url"]).startswith("https://"):
+        errors["online_url"] = _("El enlace debe empezar con https://")
     images = MediaAsset.objects.filter(pk__in=payload.get("media_ids") or [], kind=MediaAsset.Kind.IMAGE).count()
     if images < 3:
         errors["media_ids"] = _("Agrega al menos 3 fotos. Las fotos son lo que más atrae a los alumnos.")

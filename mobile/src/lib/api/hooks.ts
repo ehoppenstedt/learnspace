@@ -19,6 +19,12 @@ import type {
   ProviderBooking,
   RosterAttendee,
   SavedCard,
+  ChatMessage,
+  ExperienceReviews,
+  MyConduct,
+  PendingReviews,
+  ProviderReview,
+  Thread,
 } from './types';
 
 export function useConfig() {
@@ -174,4 +180,51 @@ export function useSavedCards(enabled = true) {
 
 export function useNotificationPrefs(enabled = true) {
   return useQuery({ queryKey: ['me', 'prefs'], queryFn: () => api<NotificationPrefs>('/me/notification-prefs'), enabled });
+}
+
+// ---------------------------------------------------------------- reviews and messaging (Phase 3)
+
+export function useExperienceReviews(id: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: ['reviews', id],
+    queryFn: ({ pageParam }) => api<ExperienceReviews>(`/experiences/${id}/reviews`, { query: { offset: pageParam } }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_offset ?? undefined,
+    enabled: Boolean(id),
+  });
+}
+
+export function usePendingReviews(enabled = true) {
+  return useQuery({ queryKey: ['me', 'pending-reviews'], queryFn: () => api<PendingReviews>('/me/reviews/pending'), enabled });
+}
+
+export function useMyConduct(enabled = true) {
+  return useQuery({ queryKey: ['me', 'conduct'], queryFn: () => api<MyConduct>('/me/conduct'), enabled });
+}
+
+export function useProviderReviews(enabled = true) {
+  return useQuery({ queryKey: ['provider', 'reviews'], queryFn: () => api<ProviderReview[]>('/provider/reviews'), enabled });
+}
+
+export function useThreads(enabled = true) {
+  return useQuery({ queryKey: ['threads'], queryFn: () => api<Thread[]>('/threads'), enabled, refetchInterval: 30_000 });
+}
+
+export function useUnreadCount(enabled = true) {
+  return useQuery({
+    queryKey: ['threads', 'unread'],
+    queryFn: () => api<{ unread: number }>('/threads/unread'),
+    enabled,
+    refetchInterval: 60_000,
+  });
+}
+
+/** Messages poll every 4 s while the thread is open (no websockets in the MVP). */
+export function useThreadMessages(id: string | undefined) {
+  return useQuery({
+    queryKey: ['thread', id],
+    queryFn: () => api<{ thread: Thread; messages: ChatMessage[] }>(`/threads/${id}/messages`),
+    enabled: Boolean(id),
+    refetchInterval: 4_000,
+  });
 }

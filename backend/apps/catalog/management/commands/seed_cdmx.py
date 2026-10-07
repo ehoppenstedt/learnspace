@@ -33,6 +33,7 @@ from apps.catalog.seed_content import (
     FIRST_NAMES,
     LAST_NAMES,
     MODIFIERS,
+    REVIEW_TEXTS,
     STREETS,
     STUDIO_NAMES,
     STUDIO_PREFIX,
@@ -64,12 +65,14 @@ class Command(BaseCommand):
             providers = self._providers(rng, opts["providers"])
             spaces = self._spaces(rng, providers)
             created = self._experiences(rng, providers, spaces, opts["experiences"])
+            reviews = self._reviews(rng)
+            self._test_scenario()
             space_count = sum(len(v) for v in spaces.values())
         from django.db import connection
 
         with connection.cursor() as cur:
             cur.execute("ANALYZE")  # fresh planner stats after bulk inserts
-        self.stdout.write(self.style.SUCCESS(f"Seeded {created} experiences across {space_count} spaces."))
+        self.stdout.write(self.style.SUCCESS(f"Seeded {created} experiences across {space_count} spaces, {reviews} reviews."))
         self.stdout.write(
             "Test accounts (password for admin; OTP codes print in the server log):\n"
             f"  admin     admin@{SEED_DOMAIN} / {TEST_PASSWORD}  -> http://localhost:8000/admin/\n"
@@ -81,9 +84,15 @@ class Command(BaseCommand):
         seed_users = User.objects.filter(email__endswith=SEED_DOMAIN)
         experiences = Experience.objects.filter(provider__user__in=seed_users)
         from apps.booking.models import Booking
+        from apps.messaging.models import MessageThread
+        from apps.reviews.models import ConductRating, Review
 
-        if Booking.objects.filter(experience__in=experiences).exists():
-            raise CommandError("Seed data has bookings; drop and recreate the database instead of --reset.")
+        if Booking.objects.filter(experience__in=experiences, payments__isnull=False).exists():
+            raise CommandError("Seed data has paid bookings; drop and recreate the database instead of --reset.")
+        MessageThread.objects.filter(experience__in=experiences).delete()
+        Review.objects.filter(experience__in=experiences).delete()
+        ConductRating.objects.filter(booking__experience__in=experiences).delete()
+        Booking.objects.filter(experience__in=experiences).delete()
         Session.objects.filter(experience__in=experiences).delete()
         Cohort.objects.filter(experience__in=experiences).delete()
         ExperienceRevision.objects.filter(experience__in=experiences).delete()
@@ -132,7 +141,6 @@ class Command(BaseCommand):
                 "display_name": name, "kind": kind, "verification_status": "verified", "avatar": avatar,
                 "about_me": f"Hola, soy {first}. Enseño lo que amo desde hace {rng.randint(3, 20)} años en la CDMX.",
                 "about_school": "" if kind == "individual" else f"{name} es un espacio independiente para aprender haciendo.",
-                "rating_avg": round(rng.uniform(4.3, 5.0), 2), "rating_count": rng.randint(0, 120),
             })
             self._payout_ready(profile)
             providers.append(profile)
@@ -203,8 +211,6 @@ class Command(BaseCommand):
                 who_its_for=rng.choice(WHO), category=categories[slug], instruction_language="en" if "Inglés" in title else "es",
                 modality="in_person", offering_type=offering, listed_price_cents=listed, default_capacity=capacity,
                 space=space, cancellation_policy=policy, published_at=now,
-                rating_avg=round(rng.uniform(4.2, 5.0), 2) if rng.random() < 0.8 else None,
-                rating_count=rng.randint(1, 90),
             )
             ExperienceMedia.objects.bulk_create([
                 ExperienceMedia(experience=experience, media=self._image(provider.user, f"{slug}-{n}-{k}"), position=k)
@@ -244,3 +250,100 @@ class Command(BaseCommand):
         for experience in Experience.objects.filter(provider__in=providers, status="live"):
             services.refresh_denorm(experience)
         return created
+
+    # ------------------------------------------------------------------ Phase 3
+
+    def _past_booking(self, experience, learner, ended_days_ago, status="completed"):
+        """A finished class: past session + booking (no payment rows; seed data never touches the gateway)."""
+        from apps.booking.models import Booking
+        from apps.booking.services import _code, _policy_snapshot
+
+        end = timezone.now() - timedelta(days=ended_days_ago)
+        session = Session(experience=experience, space=experience.space, starts_at=end - timedelta(hours=2), ends_at=end,
+                          capacity=experience.default_capacity, seats_booked=1, status="completed")
+        session.fill_local_fields()
+        session.save()
+        listed = experience.listed_price_cents
+        fee = (listed * 1000 + 5000) // 10000
+        return Booking.objects.create(
+            code=_code(), learner=learner, experience=experience, session=session, seats=1, status=status,
+            listed_cents=listed, fee_cents=fee, total_cents=listed + fee, fee_bps_snapshot=1000,
+            policy_snapshot=_policy_snapshot(experience), starts_at=session.starts_at, ends_at=end,
+            confirmed_at=session.starts_at - timedelta(days=3),
+            review_window_closes_at=end + timedelta(days=settings.REVIEW_WINDOW_DAYS))
+
+    def _reviews(self, rng):
+        """Real, revealed reviews (both sides) so ratings, summaries and conduct scores are consistent."""
+        from apps.reviews import services as reviews
+        from apps.reviews.models import ConductRating, Review
+
+        learners = [self._user(f"l{i:03d}@{SEED_DOMAIN}", f"+52552{i:07d}", rng.choice(FIRST_NAMES), rng.choice(LAST_NAMES))
+                    for i in range(30)]
+        count = 0
+        experiences = list(Experience.objects.filter(provider__user__email__endswith=SEED_DOMAIN, status="live")
+                           .exclude(provider__user__email=f"provider@{SEED_DOMAIN}").select_related("provider"))
+        for experience in experiences:
+            if rng.random() < 0.2:
+                continue  # some stay "new"
+            for learner in rng.sample(learners, rng.randint(1, 8)):
+                booking = self._past_booking(experience, learner, rng.randint(20, 200))
+                overall = rng.choices([5, 4, 3, 2], weights=[62, 28, 7, 3])[0]
+                Review.objects.create(
+                    booking=booking, experience=experience, author=learner, overall=overall,
+                    learning=max(1, min(5, overall + rng.choice([-1, 0, 0, 1]))),
+                    facilitator=max(1, min(5, overall + rng.choice([0, 0, 1]))),
+                    facilities=max(1, min(5, overall + rng.choice([-1, 0, 0]))),
+                    public_text=rng.choice(REVIEW_TEXTS[overall]), revealed_at=booking.ends_at + timedelta(days=2))
+                ConductRating.objects.create(booking=booking, learner=learner, provider=experience.provider,
+                                             respect=rng.choice([4, 5, 5, 5]), punctuality=rng.choice([3, 4, 5, 5]),
+                                             revealed_at=booking.ends_at + timedelta(days=2))
+                count += 1
+            reviews.recompute_experience_rating(experience)
+        for learner in learners:
+            reviews.recompute_conduct(learner)
+        return count
+
+    def _test_scenario(self):
+        """The two test accounts get something to do in every Phase 3 flow."""
+        from apps.messaging import services as messaging
+
+        learner = User.objects.get(email=f"learner@{SEED_DOMAIN}")
+        provider = ProviderProfile.objects.get(user__email=f"provider@{SEED_DOMAIN}")
+        if Experience.objects.filter(provider=provider).exists():
+            return
+        area = Area.objects.filter(slug="roma-norte").first() or Area.objects.first()
+        space = Space(owner=provider.user, name="Taller de Pablo — Roma", about="Taller con mesas amplias y luz natural.",
+                      address_line="Colima 123, Roma Norte", neighborhood=area.name, area=area, verification_status="verified")
+        space.point_exact = Point(-99.1617, 19.4194, srid=4326)
+        space.point_public = public_point(space.point_exact, salt=str(space.pk))
+        space.save()
+        policy = CancellationPolicy.objects.get(is_default=True)
+        cat = Category.objects.get(slug="art")
+        now = timezone.now()
+
+        def make(title, modality, days_ahead):
+            exp = Experience.objects.create(
+                provider=provider, status="live", title=title, category=cat, instruction_language="es",
+                what_you_learn="Técnicas básicas, mezcla de color y composición. Te llevas tu pieza terminada.",
+                who_its_for="Adultos sin experiencia previa.", modality=modality, offering_type="single",
+                listed_price_cents=45000, default_capacity=8, cancellation_policy=policy, published_at=now,
+                space=space if modality == "in_person" else None,
+                online_url="https://meet.example.com/taller-pablo" if modality == "online" else None)
+            ExperienceMedia.objects.bulk_create([
+                ExperienceMedia(experience=exp, media=self._image(provider.user, f"pablo-{modality}-{k}"), position=k) for k in range(4)])
+            start = timezone.make_aware(datetime.combine(timezone.localdate() + timedelta(days=days_ahead), time(19)))
+            session = Session(experience=exp, space=exp.space, starts_at=start, ends_at=start + timedelta(hours=2), capacity=8)
+            session.fill_local_fields()
+            session.save()
+            ExperienceRevision.objects.create(experience=exp, number=1, kind="initial", payload=services.snapshot(exp),
+                                              review_status="approved", submitted_at=now, decided_at=now, reason_code="approved")
+            services.refresh_denorm(exp)
+            return exp
+
+        in_person = make("Acuarela botánica con Pablo", "in_person", 5)
+        make("Dibujo de retrato en línea", "online", 4)
+        # Yesterday's class: both sides owe a rating (double-blind flow).
+        self._past_booking(in_person, learner, 1)
+        thread = messaging.thread_for_learner(learner, in_person.pk)
+        messaging.send(learner, thread, "¡Hola! ¿Necesito llevar pinceles o están incluidos?")
+        messaging.send(provider.user, thread, "Hola Lucía, todo el material está incluido. Solo trae ganas de pintar.")

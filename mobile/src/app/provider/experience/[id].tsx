@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Button, Chip, Field } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
 import { useConfig, useExperienceAction, useProviderExperience, useProviderSpaces } from '@/lib/api/hooks';
-import type { Media, OfferingType, ProviderExperience } from '@/lib/api/types';
+import type { Media, Modality, OfferingType, ProviderExperience } from '@/lib/api/types';
 import { formatMoney, pesosToCents, previewTotal } from '@/lib/utils/format';
 import { pollMedia, uploadAsset } from '@/lib/utils/upload';
 import { colors, radius, space, statusColors, type } from '@/theme/tokens';
@@ -27,13 +27,15 @@ type Draft = {
   default_capacity: string;
   space_id: string | null;
   publish_until: string | null;
+  modality: Modality;
+  online_url: string;
 };
 
 type Tile = { key: string; media?: Media; localUri?: string; state: 'uploading' | 'processing' | 'ready' | 'rejected' };
 
 const EMPTY: Draft = {
   title: '', what_you_learn: '', who_its_for: '', category_id: null, instruction_language: 'es', offering_type: 'single',
-  price: '', default_capacity: '10', space_id: null, publish_until: null,
+  price: '', default_capacity: '10', space_id: null, publish_until: null, modality: 'in_person', online_url: '',
 };
 
 function fromServer(e: ProviderExperience): Draft {
@@ -41,7 +43,7 @@ function fromServer(e: ProviderExperience): Draft {
     title: e.title, what_you_learn: e.what_you_learn, who_its_for: e.who_its_for, category_id: e.category_id,
     instruction_language: e.instruction_language, offering_type: e.offering_type,
     price: e.listed_price_cents ? String(e.listed_price_cents / 100) : '', default_capacity: String(e.default_capacity),
-    space_id: e.space_id, publish_until: e.publish_until,
+    space_id: e.space_id, publish_until: e.publish_until, modality: e.modality, online_url: e.online_url ?? '',
   };
 }
 
@@ -77,7 +79,10 @@ export default function ExperienceWizard() {
   const payload = () => ({
     title: draft.title.trim(), what_you_learn: draft.what_you_learn.trim(), who_its_for: draft.who_its_for.trim(),
     category_id: draft.category_id, instruction_language: draft.instruction_language, offering_type: draft.offering_type,
-    listed_price_cents: listedCents, default_capacity: Number(draft.default_capacity) || 10, space_id: draft.space_id,
+    listed_price_cents: listedCents, default_capacity: Number(draft.default_capacity) || 10,
+    modality: draft.modality,
+    space_id: draft.modality === 'online' ? null : draft.space_id,
+    online_url: draft.modality === 'online' ? draft.online_url.trim() : null,
     publish_until: draft.publish_until,
     media_ids: tiles.filter((x) => x.media && x.state !== 'rejected').map((x) => x.media!.id),
   });
@@ -195,8 +200,12 @@ export default function ExperienceWizard() {
             </View>
             <Text style={styles.label}>{t('wizard.modality')}</Text>
             <View style={styles.wrap}>
-              <Chip label={t('filters.inPerson')} selected />
-              <Chip label={`${t('filters.online')} · ${t('common.comingSoon')}`} />
+              <Chip label={t('filters.inPerson')} icon="location-outline" selected={draft.modality === 'in_person'} onPress={() => set('modality', 'in_person')} />
+              {config.data?.features.online_experiences || draft.modality === 'online' ? (
+                <Chip label={t('filters.online')} icon="videocam-outline" selected={draft.modality === 'online'} onPress={() => set('modality', 'online')} />
+              ) : (
+                <Chip label={`${t('filters.online')} · ${t('common.comingSoon')}`} />
+              )}
             </View>
           </>
         ) : null}
@@ -256,7 +265,12 @@ export default function ExperienceWizard() {
           </>
         ) : null}
 
-        {step === 4 ? (
+        {step === 4 && draft.modality === 'online' ? (
+          <Field label={t('online.link')} hint={t('online.linkHint')} value={draft.online_url} onChangeText={(v) => set('online_url', v)}
+            autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://meet.google.com/…" error={errors.online_url} />
+        ) : null}
+
+        {step === 4 && draft.modality !== 'online' ? (
           <>
             <Text style={styles.label}>{t('wizard.pickSpace')}</Text>
             {(spaces.data ?? []).map((s) => (

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -13,6 +13,7 @@ import { MapView, Marker } from '@/components/map';
 import { Badge, Button, Section } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
 import { useBooking } from '@/lib/api/hooks';
+import { openThreadForBooking } from '@/lib/messaging';
 import type { Booking, CancellationQuote } from '@/lib/api/types';
 import { formatMoney, formatSessionDate, formatTimeRange, seatsLabel } from '@/lib/utils/format';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -39,7 +40,7 @@ export default function BookingDetail() {
   };
 
   const directions = () => {
-    if (!loc || loc.approximate) return;
+    if (!loc || loc.online || loc.approximate) return;
     const q = encodeURIComponent(loc.address_line);
     Linking.openURL(Platform.OS === 'ios' ? `http://maps.apple.com/?daddr=${q}` : `https://www.google.com/maps/dir/?api=1&destination=${q}`);
   };
@@ -77,7 +78,16 @@ export default function BookingDetail() {
             ) : null}
           </Section>
 
-          {loc ? (
+          {loc?.online ? (
+            <Section title={t('online.where')}>
+              {loc.url ? (
+                <>
+                  <Text style={type.body} selectable>{loc.url}</Text>
+                  <Button title={t('online.join')} icon="videocam-outline" onPress={() => Linking.openURL(loc.url!)} style={{ marginTop: space.md }} />
+                </>
+              ) : <Text style={type.small}>{t('online.linkHidden')}</Text>}
+            </Section>
+          ) : loc ? (
             <Section title={t('bookings.address')}>
               {loc.approximate ? (
                 <Text style={type.small}>{t('bookings.addressHidden')}</Text>
@@ -98,7 +108,10 @@ export default function BookingDetail() {
           ) : null}
 
           <Section>
-            <Button title={t('bookings.messageSoon')} variant="secondary" icon="chatbubble-outline" disabled />
+            {b.review_pending ? (
+              <Button title={t('bookings.review')} icon="star" onPress={() => router.push(`/review/${b.id}`)} style={{ marginBottom: space.md }} />
+            ) : null}
+            <Button title={t('bookings.messageHost')} variant="secondary" icon="chatbubble-outline" onPress={() => openThreadForBooking(b.experience.id)} />
           </Section>
 
           <Section title={t('bookings.paid')} last={!b.can_cancel}>

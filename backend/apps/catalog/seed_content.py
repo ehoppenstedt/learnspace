@@ -127,3 +127,14 @@ LAST_NAMES = ["Hernández", "García", "Martínez", "López", "González", "Pér
               "Cruz", "Flores", "Gómez", "Morales", "Vázquez", "Reyes", "Jiménez"]
 STREETS = ["Colima", "Durango", "Álvaro Obregón", "Ámsterdam", "Tamaulipas", "Madero", "Río Lerma", "Francisco Sosa",
            "Masaryk", "Insurgentes Sur", "División del Norte", "Eje Central", "Sullivan", "Jalapa", "Orizaba"]
+
+# Seed reviews by star rating (Mexican Spanish, short, like real ones).
+REVIEW_TEXTS = {
+    5: ["Increíble clase, salí con ganas de seguir practicando.", "Explica con muchísima paciencia. 100% recomendado.",
+        "El espacio es precioso y el grupo pequeño ayuda mucho.", "Aprendí más en dos horas que en meses de tutoriales.",
+        "Todo el material incluido y de buena calidad. Volveré.", ""],
+    4: ["Muy buena, aunque se me hizo corta.", "Gran maestra; el lugar estaba un poco lleno.",
+        "Bien organizada. Me hubiera gustado más práctica individual.", ""],
+    3: ["Estuvo bien, pero empezó 20 minutos tarde.", "Contenido básico; útil si nunca has hecho nada."],
+    2: ["No coincidía con la descripción, esperaba más práctica."],
+}

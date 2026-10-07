@@ -19,6 +19,7 @@ def _thread(user, t: MessageThread) -> dict:
                        "cover": public_media(cover.media) if cover else None},
         "role": "learner" if is_learner else "provider",
         "counterpart": t.provider.display_name if is_learner else f"{t.learner.first_name} {t.learner.last_name[:1]}.",
+        "counterpart_id": str(t.provider_id if is_learner else t.learner_id),
         "booking_id": str(t.booking_id) if t.booking_id else None,
         "booked": t.booking_id is not None,
         "last_message": {"body": last.body, "at": last.created_at, "mine": last.sender_id == user.pk} if last else None,

@@ -69,6 +69,13 @@ export default function RootLayout() {
                 <Stack.Screen name="provider/requests" options={{ title: t('ops.requests') }} />
                 <Stack.Screen name="provider/earnings" options={{ title: t('ops.earnings') }} />
                 <Stack.Screen name="provider/roster/[id]" options={{ title: t('ops.roster') }} />
+                <Stack.Screen name="review/[id]" options={{ title: t('reviews.title') }} />
+                <Stack.Screen name="reviews/pending" options={{ title: t('reviews.pending') }} />
+                <Stack.Screen name="provider/rate/[id]" options={{ title: '' }} />
+                <Stack.Screen name="provider/reviews" options={{ title: t('reviews.received') }} />
+                <Stack.Screen name="profile/conduct" options={{ title: t('conduct.title') }} />
+                <Stack.Screen name="inbox/index" options={{ title: t('inbox.title') }} />
+                <Stack.Screen name="inbox/[id]" options={{ title: '' }} />
               </Stack>
             </FiltersProvider>
           </LocationProvider>

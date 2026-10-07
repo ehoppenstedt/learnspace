@@ -1,4 +1,4 @@
-import { ageOn, formatCountdown, formatDistance, formatMoney, maskDob, parseDob, pesosToCents, previewTotal, seatsLabel } from '../format';
+import { ageOn, formatCountdown, formatRelative, formatDistance, formatMoney, maskDob, parseDob, pesosToCents, previewTotal, seatsLabel } from '../format';
 
 describe('formatMoney', () => {
   it('drops centavos when whole', () => {
@@ -60,5 +60,19 @@ describe('booking helpers', () => {
     expect(seatsLabel(1)).toBe('1 lugar');
     expect(seatsLabel(3)).toBe('3 lugares');
     expect(seatsLabel(2, 'en')).toBe('2 spots');
+  });
+});
+
+describe('formatRelative', () => {
+  const now = new Date('2026-10-07T18:00:00Z'); // 12:00 in CDMX
+  it('shows the time for messages from today (CDMX)', () => {
+    expect(formatRelative('2026-10-07T15:05:00Z', 'es', now)).toBe('09:05');
+  });
+  it('shows a short date for older messages', () => {
+    expect(formatRelative('2026-10-05T15:05:00Z', 'es', now)).toBe('5 oct');
+  });
+  it('uses the CDMX day boundary, not UTC', () => {
+    // 01:00 UTC on the 8th is still the 7th in Mexico City.
+    expect(formatRelative('2026-10-08T01:00:00Z', 'en', new Date('2026-10-08T02:00:00Z'))).toBe('19:00');
   });
 });

@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { API_URL } from './config';
 import { tokenStore } from '../auth/tokenStore';
 import type { ApiErrorBody } from './types';
@@ -70,7 +72,8 @@ async function refreshTokens(): Promise<boolean> {
 }
 
 export async function api<T>(path: string, opts: Options = {}, retried = false): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': language };
+  // The platform lets the server apply store rules (online experiences are off on iOS for now).
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': language, 'X-Client-Platform': Platform.OS };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   // A keystore failure must never block public browsing: treat it as logged out.
   const access = opts.auth === false ? null : await tokenStore.getAccess().catch(() => null);

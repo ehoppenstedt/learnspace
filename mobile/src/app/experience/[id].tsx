@@ -1,14 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Circle, MapView, Marker } from '@/components/map';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PhotoCarousel } from '@/components/PhotoCarousel';
+import { ReportSheet } from '@/components/ReportSheet';
+import { RatingBar, Stars } from '@/components/Stars';
 import { Button, ErrorState, Section } from '@/components/ui';
-import { useExperience } from '@/lib/api/hooks';
+import { useExperience, useExperienceReviews } from '@/lib/api/hooks';
+import { openThreadForBooking } from '@/lib/messaging';
 import type { ExperienceDetail } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { formatMoney, formatSessionDate, formatTimeRange } from '@/lib/utils/format';
@@ -59,20 +63,14 @@ export default function ExperienceScreen() {
             </Section>
           ) : null}
           <AboutHost e={e} />
-          <Section title={t('detail.reviews')}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="star" size={18} color={colors.star} />
-              <Text style={[type.heading, { marginLeft: 6 }]}>
-                {e.rating_avg ? `${Number(e.rating_avg).toFixed(2)} · ${e.rating_count}` : t('detail.noReviews')}
-              </Text>
-            </View>
-          </Section>
+          <Reviews e={e} />
           {e.cancellation_policy ? (
             <Section title={t('detail.policy')} last>
               <Text style={type.bodyStrong}>{e.cancellation_policy.name}</Text>
               <Text style={[type.small, { marginTop: space.sm }]}>{e.cancellation_policy.description}</Text>
             </Section>
           ) : null}
+          <ReportLink id={e.id} />
         </View>
       </ScrollView>
 
@@ -109,6 +107,12 @@ function Header({ e }: { e: ExperienceDetail }) {
 
 function HostRow({ e }: { e: ExperienceDetail }) {
   const { t } = useTranslation();
+  const { isLoggedIn, me } = useAuth();
+  const ask = () => {
+    if (!isLoggedIn) return router.push({ pathname: '/auth', params: { next: `/experience/${e.id}` } });
+    openThreadForBooking(e.id);
+  };
+  const own = me?.id === e.provider.id;
   const avatar = e.provider.avatar?.urls?.w400;
   return (
     <View style={styles.hostRow}>
@@ -128,7 +132,70 @@ function HostRow({ e }: { e: ExperienceDetail }) {
           </View>
         ) : null}
       </View>
+      {!own ? (
+        <Pressable onPress={ask} style={styles.ask} accessibilityRole="button" accessibilityLabel={t('inbox.ask')}>
+          <Ionicons name="chatbubble-outline" size={18} color={colors.text} />
+        </Pressable>
+      ) : null}
     </View>
+  );
+}
+
+function Reviews({ e }: { e: ExperienceDetail }) {
+  const { t, i18n } = useTranslation();
+  const query = useExperienceReviews(e.id);
+  const [reporting, setReporting] = useState<string | null>(null);
+  const first = query.data?.pages[0];
+  const summary = first?.summary;
+  const reviews = query.data?.pages.flatMap((p) => p.results) ?? [];
+  return (
+    <Section title={t('detail.reviews')}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.md }}>
+        <Ionicons name="star" size={18} color={colors.star} />
+        <Text style={[type.heading, { marginLeft: 6 }]}>
+          {summary?.count ? `${Number(summary.overall).toFixed(2)} · ${t('detail.reviewsCount', { count: summary.count })}` : t('detail.noReviews')}
+        </Text>
+      </View>
+      {summary?.count ? (
+        <View style={{ marginBottom: space.lg }}>
+          <RatingBar label={t('reviews.learning')} value={summary.learning} />
+          <RatingBar label={t('reviews.facilitator')} value={summary.facilitator} />
+          <RatingBar label={t('reviews.facilities')} value={summary.facilities} />
+        </View>
+      ) : null}
+      {reviews.map((r) => (
+        <View key={r.id} style={styles.review}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={styles.reviewAvatar}><Text style={{ color: colors.white, fontWeight: '700' }}>{r.author[0] ?? '?'}</Text></View>
+            <View style={{ flex: 1, marginLeft: space.sm }}>
+              <Text style={type.bodyStrong}>{r.author}</Text>
+              <Text style={type.caption}>{formatSessionDate(r.date, i18n.language).split(' · ')[0]}</Text>
+            </View>
+            <Pressable hitSlop={10} onPress={() => setReporting(r.id)} accessibilityLabel={t('reviews.report')}>
+              <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          <View style={{ marginTop: space.sm }}><Stars value={r.overall} size={12} /></View>
+          {r.text ? <Text style={[type.body, { marginTop: space.sm }]}>{r.text}</Text> : null}
+        </View>
+      ))}
+      {query.hasNextPage ? <Button title={t('reviews.more')} variant="secondary" onPress={() => query.fetchNextPage()} loading={query.isFetchingNextPage} /> : null}
+      {reporting ? <ReportSheet target="review" id={reporting} onClose={() => setReporting(null)} /> : null}
+    </Section>
+  );
+}
+
+function ReportLink({ id }: { id: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: space.lg }} accessibilityRole="button">
+        <Ionicons name="flag-outline" size={16} color={colors.textMuted} />
+        <Text style={[type.small, { marginLeft: space.sm, textDecorationLine: 'underline' }]}>{t('report.title.experience')}</Text>
+      </Pressable>
+      {open ? <ReportSheet target="experience" id={id} onClose={() => setOpen(false)} /> : null}
+    </>
   );
 }
 
@@ -168,6 +235,16 @@ function Where({ e }: { e: ExperienceDetail }) {
   const { t } = useTranslation();
   const loc = e.location;
   if (!loc) return null;
+  if (loc.online) {
+    return (
+      <Section title={t('online.where')}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name="videocam-outline" size={22} color={colors.text} />
+          <Text style={[type.body, { marginLeft: space.md, flex: 1 }]}>{loc.url ?? t('online.whereBody')}</Text>
+        </View>
+      </Section>
+    );
+  }
   const region = { latitude: loc.lat, longitude: loc.lng, latitudeDelta: 0.025, longitudeDelta: 0.025 };
   return (
     <Section title={t('detail.where')}>
@@ -273,6 +350,9 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
   },
   avatar: { width: 48, height: 48, borderRadius: 24 },
+  ask: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  review: { paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
+  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.text },
   dateCard: { width: 150, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: space.md },
   mapWrap: { height: 200, borderRadius: radius.lg, overflow: 'hidden' },

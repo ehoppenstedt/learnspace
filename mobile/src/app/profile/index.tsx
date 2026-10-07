@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Chip, Section } from '@/components/ui';
+import { usePendingReviews, useUnreadCount } from '@/lib/api/hooks';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { setLanguage } from '@/lib/i18n';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -11,6 +12,9 @@ import { colors, radius, space, type } from '@/theme/tokens';
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { isLoggedIn, me, signOut } = useAuth();
+  const unread = useUnreadCount(isLoggedIn);
+  const pending = usePendingReviews(isLoggedIn);
+  const owed = (pending.data?.reviews.length ?? 0) + (pending.data?.conduct_ratings.length ?? 0);
 
   if (!isLoggedIn) {
     return (
@@ -46,10 +50,13 @@ export default function ProfileScreen() {
       </Pressable>
 
       <Row icon="calendar-outline" label={t('profile.bookings')} onPress={() => router.push('/bookings')} />
+      <Row icon="chatbubbles-outline" label={t('profile.messages')} count={unread.data?.unread} onPress={() => router.push('/inbox')} />
+      {owed ? <Row icon="star-outline" label={t('profile.pendingReviews')} count={owed} onPress={() => router.push('/reviews/pending')} /> : null}
       <Row icon="heart-outline" label={t('profile.interests')} onPress={() => router.push('/profile/interests')} />
       <Row icon="notifications-outline" label={t('settings.notifications')} onPress={() => router.push('/profile/notifications')} />
       <Row icon="card-outline" label={t('settings.cards')} onPress={() => router.push('/profile/cards')} />
-      <Row icon="ribbon-outline" label={t('profile.conduct')} value={me?.conduct_score ?? t('profile.conductNew')} />
+      <Row icon="ribbon-outline" label={t('profile.conduct')} value={me?.conduct_score ? Number(me.conduct_score).toFixed(1) : t('profile.conductNew')}
+        onPress={() => router.push('/profile/conduct')} />
       <Row icon="shield-outline" label={t('profile.privacy')} onPress={() => router.push('/profile/privacy')} />
       <LanguagePicker current={i18n.language} />
       <Section last>
@@ -71,11 +78,12 @@ function LanguagePicker({ current }: { current: string }) {
   );
 }
 
-function Row({ icon, label, value, onPress }: { icon: string; label: string; value?: string; onPress?: () => void }) {
+function Row({ icon, label, value, count, onPress }: { icon: string; label: string; value?: string; count?: number; onPress?: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress} disabled={!onPress}>
       <Ionicons name={icon as never} size={22} color={colors.text} />
       <Text style={[type.body, { flex: 1, marginLeft: space.md }]}>{label}</Text>
+      {count ? <View style={styles.count}><Text style={styles.countText}>{count}</Text></View> : null}
       {value ? <Text style={type.small}>{value}</Text> : <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
     </Pressable>
   );
@@ -85,6 +93,8 @@ const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xl },
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   initial: { color: colors.white, fontSize: 26, fontWeight: '700' },
+  count: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, marginRight: space.sm },
+  countText: { color: colors.white, fontSize: 12, fontWeight: '700' },
   providerCard: {
     flexDirection: 'row', alignItems: 'center', padding: space.lg, borderRadius: radius.lg, borderWidth: 1,
     borderColor: colors.border, marginBottom: space.lg,

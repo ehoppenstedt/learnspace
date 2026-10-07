@@ -47,6 +47,8 @@ export default function ManageExperiences() {
             <Tool icon="hourglass-outline" label={`${t('ops.requests')}${requests.data?.length ? ` (${requests.data.length})` : ''}`} onPress={() => router.push('/provider/requests')} />
             <Tool icon="cash-outline" label={t('ops.earnings')} onPress={() => router.push('/provider/earnings')} />
             <Tool icon="wallet-outline" label={t('ops.paymentsTitle')} onPress={() => router.push('/provider/payments')} />
+            <Tool icon="star-outline" label={t('ops.reviews')} onPress={() => router.push('/provider/reviews')} />
+            <Tool icon="chatbubbles-outline" label={t('inbox.title')} onPress={() => router.push('/inbox')} />
           </View>
           <Button title={t('provider.newExperience')} icon="add" onPress={() => router.push('/provider/experience/new')} />
         </View>
