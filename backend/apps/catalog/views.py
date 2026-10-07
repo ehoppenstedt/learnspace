@@ -46,6 +46,7 @@ from apps.catalog.serializers import (
 from apps.catalog.storage import LocalStorage, get_storage
 from apps.core.exceptions import DomainError
 from apps.core.permissions import IsProvider
+from apps.core.platform import online_allowed
 from apps.payments.pricing import current_fee_bps
 
 
@@ -69,7 +70,7 @@ class ConfigView(PublicView):
             "cancellation_policies": PolicySerializer(
                 CancellationPolicy.objects.filter(is_active=True).prefetch_related("rules"), many=True
             ).data,
-            "features": {"online_experiences": settings.FEATURE_ONLINE_EXPERIENCES,
+            "features": {"online_experiences": online_allowed(request),
                          "payments_test_mode": settings.PAYMENTS_TEST_MODE},
             "feed": {"default_radius_km": settings.FEED_DEFAULT_RADIUS_KM, "max_radius_km": settings.FEED_MAX_RADIUS_KM},
             "media": {
@@ -93,7 +94,7 @@ class AreasView(PublicView):
         return Response(AreaSerializer(qs[:20], many=True).data)
 
 
-def _filters_from(params: dict, user=None) -> feed_service.FeedFilters:
+def _filters_from(params: dict, user=None, request=None) -> feed_service.FeedFilters:
     interests = []
     if user is not None and user.is_authenticated:
         from apps.accounts.models import Interest
@@ -101,6 +102,7 @@ def _filters_from(params: dict, user=None) -> feed_service.FeedFilters:
         interests = list(Interest.objects.filter(user=user).values_list("category_id", flat=True))
     return feed_service.FeedFilters(
         interest_category_ids=interests,
+        allow_online=online_allowed(request) if request is not None else False,
         origin=feed_service.resolve_origin(params.get("lat"), params.get("lng"), params.get("area")),
         radius_km=params["radius_km"],
         q=params["q"],
@@ -122,7 +124,7 @@ class FeedView(PublicView):
         query.is_valid(raise_exception=True)
         params = query.validated_data
         fee_bps = current_fee_bps()
-        items, next_offset = feed_service.feed(_filters_from(params, request.user), fee_bps, offset=params["offset"])
+        items, next_offset = feed_service.feed(_filters_from(params, request.user, request), fee_bps, offset=params["offset"])
         return Response({
             "results": ExperienceCardSerializer(items, many=True, context={"fee_bps": fee_bps}).data,
             "next_offset": next_offset,
@@ -136,7 +138,7 @@ class MapView(PublicView):
         params = query.validated_data
         if "bbox" not in params:
             raise DomainError("bbox_required", "bbox is required", status.HTTP_400_BAD_REQUEST)
-        pins = feed_service.map_pins(_filters_from(params), current_fee_bps(), params["bbox"])
+        pins = feed_service.map_pins(_filters_from(params, None, request), current_fee_bps(), params["bbox"])
         return Response({"results": [
             {"id": p["id"], "title": p["title"], "lat": p["point_public"].y, "lng": p["point_public"].x,
              "total_cents": p["total_cents"], "icon": p["category__icon"]}
@@ -164,6 +166,8 @@ class ExperienceDetailView(PublicView):
         )
         is_owner = request.user.is_authenticated and experience.provider_id == request.user.pk
         if experience.status not in (Experience.Status.LIVE,) and not is_owner:
+            raise Http404
+        if experience.modality == Experience.Modality.ONLINE and not is_owner and not online_allowed(request):
             raise Http404
         context = {"fee_bps": current_fee_bps(), "reveal_exact": can_see_exact_location(request.user, experience)}
         return Response(ExperienceDetailSerializer(experience, context=context).data)

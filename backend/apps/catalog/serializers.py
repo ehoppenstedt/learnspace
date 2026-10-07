@@ -202,6 +202,9 @@ class ExperienceDetailSerializer(ExperienceCardSerializer):
         return SpacePublicSerializer(obj.space).data if obj.space else None
 
     def get_location(self, obj):
+        if obj.modality == Experience.Modality.ONLINE:
+            url = obj.online_url if self.context.get("reveal_exact") else None
+            return {"online": True, "approximate": url is None, "url": url}
         if not obj.space:
             return None
         if self.context.get("reveal_exact"):

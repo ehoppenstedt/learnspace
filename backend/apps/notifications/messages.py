@@ -61,6 +61,26 @@ MESSAGES = {
         "es": ("Tus datos están listos", "Descarga tu archivo (válido 24 horas): {url}"),
         "en": ("Your data is ready", "Download your file (valid for 24 hours): {url}"),
     },
+    "review_prompt": {
+        "es": ("¿Cómo te fue en «{title}»?", "Califica la clase. Tu reseña ayuda a otros alumnos y a quien enseña."),
+        "en": ("How was “{title}”?", "Rate the class. Your review helps other learners and your teacher."),
+    },
+    "rate_learner_prompt": {
+        "es": ("Califica a tus alumnos", "Cuéntanos cómo fue {learner} en «{title}»."),
+        "en": ("Rate your learners", "Tell us how {learner} did in “{title}”."),
+    },
+    "review_received": {
+        "es": ("Nueva reseña", "Ya puedes leer la reseña de «{title}»."),
+        "en": ("New review", "You can now read the review for “{title}”."),
+    },
+    "conduct_received": {
+        "es": ("Tienes una calificación nueva", "Quien impartió «{title}» te calificó. Revísala en tu perfil."),
+        "en": ("You have a new rating", "The teacher of “{title}” rated you. See it in your profile."),
+    },
+    "new_message": {
+        "es": ("{sender}", "{preview}"),
+        "en": ("{sender}", "{preview}"),
+    },
 }
 
 # Reminders can be turned off; transactional messages (money, confirmations) cannot.

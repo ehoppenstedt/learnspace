@@ -170,6 +170,65 @@ class AdminActionAdmin(admin.ModelAdmin):
 
 @admin.register(Report)
 class ReportAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "target_type", "target_id", "reason_code", "status", "reporter")
-    list_filter = ("status", "target_type", "reason_code")
+    """Flag queue: experiences, reviews, messages, users, bookings (no-show disputes, chargebacks)."""
 
+    list_display = ("created_at", "target_type", "target_link", "reason_code", "status", "reporter")
+    list_filter = ("status", "target_type", "reason_code")
+    readonly_fields = ("reporter", "target_type", "target_id", "reason_code", "details", "created_at", "target_link")
+    actions = ["dismiss", "hide_content", "suspend_user"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).order_by("status", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="Target")
+    def target_link(self, obj):
+        from django.urls import NoReverseMatch, reverse
+        from django.utils.html import format_html
+
+        names = {"experience": "catalog_experience", "review": "reviews_review", "message": "messaging_message",
+                 "user": "accounts_user", "booking": "booking_booking"}
+        try:
+            url = reverse(f"admin:{names[obj.target_type]}_change", args=[obj.target_id])
+        except (KeyError, NoReverseMatch):
+            return obj.target_id
+        return format_html('<a href="{}">{}</a>', url, obj.target_id[:8])
+
+    def _close(self, request, report, status):
+        from django.utils import timezone
+
+        Report.objects.filter(pk=report.pk).update(status=status, resolved_by=request.user, resolved_at=timezone.now())
+        services.log(request.user, f"report.{status}", report)
+
+    @admin.action(description="Dismiss")
+    def dismiss(self, request, queryset):
+        for report in queryset.filter(status=Report.Status.OPEN):
+            self._close(request, report, Report.Status.DISMISSED)
+
+    @admin.action(description="Hide the reported review/message")
+    def hide_content(self, request, queryset):
+        from apps.messaging.models import Message
+        from apps.reviews.models import Review
+        from apps.reviews.services import set_review_visibility
+
+        for report in queryset.filter(status=Report.Status.OPEN, target_type__in=["review", "message"]):
+            if report.target_type == "review":
+                review = Review.objects.filter(pk=report.target_id).first()
+                if review:
+                    set_review_visibility(request.user, review, visible=False, note=f"report {report.pk}")
+            else:
+                Message.objects.filter(pk=report.target_id).update(hidden=True)
+            self._close(request, report, Report.Status.ACTIONED)
+
+    @admin.action(description="Suspend the reported user")
+    def suspend_user(self, request, queryset):
+        from apps.accounts.models import User
+
+        for report in queryset.filter(status=Report.Status.OPEN, target_type="user"):
+            user = User.objects.filter(pk=report.target_id).first()
+            if user:
+                User.objects.filter(pk=user.pk).update(status=User.Status.SUSPENDED)
+                services.log(request.user, "user.suspend", user, note=f"report {report.pk}")
+            self._close(request, report, Report.Status.ACTIONED)

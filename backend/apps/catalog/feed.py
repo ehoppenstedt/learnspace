@@ -38,6 +38,7 @@ class FeedFilters:
     language: str | None = None
     sort: str = "distance"
     interest_category_ids: list[int] = field(default_factory=list)
+    allow_online: bool = False
 
 
 def resolve_origin(lat: float | None, lng: float | None, area_slug: str | None) -> Point | None:
@@ -65,8 +66,7 @@ def base_queryset(filters: FeedFilters, fee_bps: int):
         .filter(Q(publish_until__isnull=True) | Q(publish_until__gt=now))
         .annotate(total_cents=total_cents_expression(fee_bps))
     )
-    online_enabled = settings.FEATURE_ONLINE_EXPERIENCES
-    if not online_enabled:
+    if not filters.allow_online:
         qs = qs.filter(modality=Experience.Modality.IN_PERSON)
     if filters.modality:
         qs = qs.filter(modality=filters.modality)
@@ -104,7 +104,7 @@ def feed(filters: FeedFilters, fee_bps: int, offset: int = 0, limit: int = setti
     qs = base_queryset(filters, fee_bps)
     if filters.origin is not None:
         within = Q(point_public__dwithin=(filters.origin, D(km=filters.radius_km)))
-        if settings.FEATURE_ONLINE_EXPERIENCES and filters.modality != Experience.Modality.IN_PERSON:
+        if filters.allow_online and filters.modality != Experience.Modality.IN_PERSON:
             within |= Q(modality=Experience.Modality.ONLINE)
         # Sphere (not spheroid) distance: <0.5% error at city scale, ~3x cheaper.
         qs = qs.filter(within).annotate(distance=Distance("point_public", filters.origin, spheroid=False))

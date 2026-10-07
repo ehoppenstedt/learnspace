@@ -83,5 +83,7 @@ def send(notification_id) -> Notification:
 
 
 def _deeplink(notification) -> dict:
+    if thread_id := notification.payload.get("thread_id"):
+        return {"url": f"learnspace://inbox/{thread_id}"}
     booking_id = notification.payload.get("booking_id")
     return {"url": f"learnspace://bookings/{booking_id}"} if booking_id else {}

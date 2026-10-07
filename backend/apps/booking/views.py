@@ -32,6 +32,14 @@ class HoldsView(APIView):
     def post(self, request):
         data = HoldCreateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
+        from apps.catalog.models import Cohort, Experience, Session
+        from apps.core.exceptions import DomainError
+        from apps.core.platform import online_allowed
+
+        target = (Session.objects.filter(pk=data.validated_data.get("session_id")).select_related("experience").first()
+                  or Cohort.objects.filter(pk=data.validated_data.get("cohort_id")).select_related("experience").first())
+        if target and target.experience.modality == Experience.Modality.ONLINE and not online_allowed(request):
+            raise DomainError("not_available_on_platform", "Online experiences aren't available on this device yet.", 403)
         result = services.create_hold(request.user, seats=data.validated_data["seats"],
                                       session_id=data.validated_data.get("session_id"),
                                       cohort_id=data.validated_data.get("cohort_id"))

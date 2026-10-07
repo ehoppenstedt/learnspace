@@ -176,7 +176,10 @@ FFPROBE_BINARY = env_str("FFPROBE_BINARY", "ffprobe")
 
 # --- Marketplace --------------------------------------------------------------------
 DEFAULT_FEE_BPS = env_int("DEFAULT_FEE_BPS", 1000)  # used only if no FeeConfig row exists
-FEATURE_ONLINE_EXPERIENCES = env_bool("FEATURE_ONLINE_EXPERIENCES", False)
+FEATURE_ONLINE_EXPERIENCES = env_bool("FEATURE_ONLINE_EXPERIENCES", True)
+# Apple guideline 3.1.1 vs 3.1.3(d): live one-to-many online classes sold inside an iOS app may
+# require In-App Purchase. Keep online experiences hidden on iOS until that review is decided.
+ONLINE_EXPERIENCES_ON_IOS = env_bool("ONLINE_EXPERIENCES_ON_IOS", False)
 FEED_DEFAULT_RADIUS_KM = 10
 FEED_MAX_RADIUS_KM = 50
 FEED_PAGE_SIZE = 20

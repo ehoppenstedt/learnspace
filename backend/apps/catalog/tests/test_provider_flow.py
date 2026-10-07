@@ -192,7 +192,8 @@ def test_media_limits_and_ownership(api, provider_user):
     assert res.status_code == 400 and res.data["error"]["code"] == "too_many_images"
 
 
-def test_online_disabled_in_phase_1(api, provider_user):
+def test_online_can_be_switched_off(api, provider_user, settings):
+    settings.FEATURE_ONLINE_EXPERIENCES = False
     auth(api, provider_user)
     res = api.post("/api/v1/provider/experiences", {"modality": "online"})
     assert res.status_code == 400 and res.data["error"]["code"] == "online_disabled"

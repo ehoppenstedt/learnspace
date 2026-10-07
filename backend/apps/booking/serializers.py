@@ -78,6 +78,9 @@ class BookingSerializer(serializers.ModelSerializer):
                 "fee_bps": obj.fee_bps_snapshot, "currency": "MXN"}
 
     def get_location(self, obj):
+        if obj.experience.modality == "online":
+            url = obj.experience.online_url if obj.status in CONFIRMED_LIKE else None
+            return {"online": True, "approximate": url is None, "url": url, "lat": None, "lng": None, "neighborhood": ""}
         space = obj.experience.space
         if not space:
             return None
@@ -100,7 +103,9 @@ class BookingSerializer(serializers.ModelSerializer):
         return obj.status in (Booking.Status.CONFIRMED, Booking.Status.PENDING_APPROVAL) and obj.starts_at > timezone.now()
 
     def get_review_pending(self, obj):
-        return obj.status == Booking.Status.COMPLETED and bool(obj.review_window_closes_at and obj.review_window_closes_at > timezone.now())
+        from apps.reviews.services import LEARNER_REVIEWABLE, window_open
+
+        return obj.status in LEARNER_REVIEWABLE and window_open(obj) and not hasattr(obj, "review")
 
 
 class RosterSerializer(serializers.ModelSerializer):

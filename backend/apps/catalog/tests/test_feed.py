@@ -180,7 +180,8 @@ def test_config_and_areas(api):
     config = api.get("/api/v1/config").data
     assert config["fee_bps"] == 1000
     assert len(config["categories"]) == 15
-    assert config["features"]["online_experiences"] is False
+    assert config["features"]["online_experiences"] is True
+    assert api.get("/api/v1/config", HTTP_X_CLIENT_PLATFORM="ios").data["features"]["online_experiences"] is False
     assert api.get("/api/v1/geo/areas", {"q": "coyoacan"}).data[0]["slug"] == "coyoacan-centro"
 
 

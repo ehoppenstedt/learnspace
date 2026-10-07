@@ -576,10 +576,16 @@ def dispute_no_show(user, booking_id, details: str):
 
 
 def complete_finished() -> int:
+    """Mark finished classes completed and open the review window (with prompts to both sides)."""
+    from apps.reviews.services import notify_window_opened
+
     now = timezone.now()
-    return Booking.objects.filter(status=Booking.Status.CONFIRMED, ends_at__lte=now).update(
-        status=Booking.Status.COMPLETED, review_window_closes_at=now + timedelta(days=settings.REVIEW_WINDOW_DAYS)
-    )
+    ids = list(Booking.objects.filter(status=Booking.Status.CONFIRMED, ends_at__lte=now).values_list("pk", flat=True))
+    Booking.objects.filter(pk__in=ids).update(
+        status=Booking.Status.COMPLETED, review_window_closes_at=F("ends_at") + timedelta(days=settings.REVIEW_WINDOW_DAYS))
+    for booking in Booking.objects.filter(pk__in=ids).select_related("experience__provider__user", "learner"):
+        notify_window_opened(booking)
+    return len(ids)
 
 
 def expire_unpaid() -> int:
@@ -598,7 +604,8 @@ def send_reminders() -> int:
         ).select_related("experience__space", "learner")
         for booking in due:
             space = booking.experience.space
-            _notify(booking.learner, kind, booking, address=space.address_line if space else "")
+            where = booking.experience.online_url if booking.experience.modality == "online" else (space.address_line if space else "")
+            _notify(booking.learner, kind, booking, address=where or "")
             sent += 1
     return sent
 
@@ -613,7 +620,10 @@ def booking_ics(booking: Booking) -> str:
 
     space = booking.experience.space
     events = [(bs.session.starts_at, bs.session.ends_at) for bs in booking.booking_sessions.select_related("session").order_by("session__starts_at")]
-    location = f"{space.address_line}, {space.neighborhood}, {space.city}" if space else ""
+    if booking.experience.modality == "online":
+        location = booking.experience.online_url or ""
+    else:
+        location = f"{space.address_line}, {space.neighborhood}, {space.city}" if space else ""
     return build_ics(uid=booking.code, events=events, summary=booking.experience.title,
                      description=f"{settings.BRAND_NAME} · {booking.code} · {booking.seats} lugar(es)", location=location)
 
