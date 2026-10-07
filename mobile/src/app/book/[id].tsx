@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TestPaymentSheet, type TestOutcome } from '@/components/TestPaymentSheet';
 import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
 import { useConfig, useExperience } from '@/lib/api/hooks';
@@ -31,6 +32,7 @@ export default function BookScreen() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const paid = useRef(false);
+  const [testSheet, setTestSheet] = useState<{ amount: number; resolve: (o: TestOutcome) => void } | null>(null);
 
   // Countdown tick while a hold is active.
   useEffect(() => {
@@ -77,8 +79,12 @@ export default function BookScreen() {
         '/bookings', { method: 'POST', body: { hold_id: hold.hold_id } });
       const sheet = res.payment_sheet;
       if (sheet?.gateway === 'fake') {
-        // Local development without Stripe keys: the API simulates the processor's webhook.
-        await api(`/dev/payments/${res.booking.id}/simulate`, { method: 'POST', body: {} });
+        // Test mode (no Stripe account yet): a stand-in sheet, then the API simulates the processor's webhook.
+        const outcome = await new Promise<TestOutcome>((resolve) => setTestSheet({ amount: hold.price.total_cents, resolve }));
+        setTestSheet(null);
+        if (outcome === 'cancelled') return;
+        await api(`/dev/payments/${res.booking.id}/simulate`, { method: 'POST', body: outcome === 'failed' ? { outcome: 'failed' } : {} });
+        if (outcome === 'failed') return Alert.alert(t('testmode.declined'));
       } else if (sheet) {
         const result = await collectPayment(sheet, config.data?.brand ?? 'learnspace');
         if (result.outcome === 'cancelled') return Alert.alert(t('book.paymentCancelled'));
@@ -136,6 +142,12 @@ export default function BookScreen() {
           </>
         ) : (
           <>
+            {config.data?.features.payments_test_mode ? (
+              <View style={[styles.timer, { backgroundColor: '#FFF4D6' }]}>
+                <Ionicons name="flask-outline" size={18} color={colors.warning} />
+                <Text style={[type.smallStrong, { marginLeft: space.sm, color: colors.warning, flex: 1 }]}>{t('testmode.banner')}</Text>
+              </View>
+            ) : null}
             <View style={[styles.timer, expired && { backgroundColor: '#FDE2E1' }]}>
               <Ionicons name="time-outline" size={18} color={expired ? colors.danger : colors.brand} />
               <Text style={[type.smallStrong, { marginLeft: space.sm, color: expired ? colors.danger : colors.brand }]}>
@@ -175,6 +187,7 @@ export default function BookScreen() {
             loading={busy} style={{ flex: 1 }} />
         )}
       </View>
+      {testSheet ? <TestPaymentSheet amountCents={testSheet.amount} onResult={testSheet.resolve} /> : null}
     </SafeAreaView>
   );
 }

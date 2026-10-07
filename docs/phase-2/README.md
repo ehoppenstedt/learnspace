@@ -1,6 +1,6 @@
 # Phase 2 — Booking, payments, cancellations, notifications, learner profile
 
-Status: **built, tested, awaiting your approval.** Real money has not moved: Stripe is integrated and unit-tested against its API contract, but no Stripe account/keys exist yet, so every end-to-end run used the built-in test gateway (§6).
+Status: **built, tested, awaiting your approval; runs in test mode for user testing** (see §7 and [going-live.md](../going-live.md)). Real money has not moved: Stripe is integrated and unit-tested against its API contract, but no Stripe account/keys exist yet, so every end-to-end run used the built-in test gateway (§6).
 
 ## 1. Decisions applied
 
@@ -78,6 +78,10 @@ Real renders (web preview at phone size, against the seeded API; photos are gene
 |---|---|---|
 | ![](screens/roster.jpg) | ![](screens/earnings.jpg) | ![](screens/payouts-setup.jpg) |
 
+| Test payment sheet (user testing) | Placeholder receipt (not a CFDI) |
+|---|---|
+| ![](screens/test-payment-sheet.jpg) | ![](screens/test-receipt.jpg) |
+
 ## 4. Verification
 
 | Check | Result |
@@ -112,13 +116,13 @@ Real renders (web preview at phone size, against the seeded API; photos are gene
 
 `PAYMENT_GATEWAY=fake` (default in development) replaces Stripe with an in-process gateway: the app shows a test-mode payment, the API simulates the signed webhook, and provider KYC completes instantly. The settings refuse to start with the fake gateway when `APP_ENV=production`. Everything else (holds, refunds, transfers, jobs) runs the same code as production.
 
-## 7. Open decisions for you
+## 7. Decisions (updated 2026-10-07)
 
-1. **Withholding rates** for personas físicas (and any IVA treatment of the 10% fee): from your tax advisor. Until set, the platform withholds 0%. **This blocks launch, not development.**
-2. **CFDI / SAT reporting:** monthly retention certificates and fee invoices need a PAC (e.g. Facturapi). Recommend adding in Phase 3 or right before launch.
-3. **Stripe account:** create it under the operating entity (RFC placeholder today), enable Connect, Apple Pay domain/merchant ID. Steps in [deploy.md](../deploy.md).
-4. **Conduct threshold default:** providers set it per experience; there's no platform default. Keep it that way?
-5. **Penalty policy:** currently flag + auto-pause at 3 provider cancellations in 90 days, no money. Confirm.
+| # | Decision | Status |
+|---|---|---|
+| 1-3 | Withholding rates, electronic invoicing (CFDI), Stripe account | **Deferred.** The app runs in test mode for user testing: test payment sheet (simulated approve/decline, no card data), instant test KYC, $0 withholding labeled "por definir", placeholder receipts and monthly statements marked "no es CFDI". Switching each to real is listed in [going-live.md](../going-live.md). |
+| 4 | Provider cancellation penalty | **Confirmed:** flag + auto-pause at 3 cancellations in 90 days, no money penalty. |
+| 5 | Platform default for "approve learners below X score" | **Off by default** (each provider opts in per experience). It has no effect until conduct scores exist (Phase 3). |
 
 ## 8. Phase 3 preview
 

@@ -96,7 +96,7 @@ export type AppConfig = {
   languages: string[];
   categories: Category[];
   cancellation_policies: Policy[];
-  features: { online_experiences: boolean };
+  features: { online_experiences: boolean; payments_test_mode: boolean };
   feed: { default_radius_km: number; max_radius_km: number };
   media: { max_images: number; max_videos: number; max_image_bytes: number; max_video_bytes: number; max_video_seconds: number };
   legal: { entity: string; rfc: string; privacy_notice_version: string };
@@ -275,6 +275,8 @@ export type OnboardingStatus = {
 };
 
 export type Earnings = {
+  withholding_configured: boolean;
+  test_mode: boolean;
   totals: { upcoming_cents: number; on_hold_cents: number; paid_cents: number };
   transfers: {
     id: string; booking_code: string; experience: string; gross_cents: number; isr_withheld_cents: number;

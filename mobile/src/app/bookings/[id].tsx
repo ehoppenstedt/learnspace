@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -105,6 +106,12 @@ export default function BookingDetail() {
             <PriceRow label={t('book.fee')} value={formatMoney(b.price.fee_cents, lang)} />
             <PriceRow label={t('book.total')} value={formatMoney(b.price.total_cents, lang)} strong />
             {b.refunded_cents ? <PriceRow label={t('bookings.refunded')} value={`− ${formatMoney(b.refunded_cents, lang)}`} /> : null}
+            {['confirmed', 'completed', 'no_show', 'cancelled'].includes(b.status) ? (
+              <Button title={t('testmode.receipt')} variant="ghost" icon="document-text-outline" onPress={async () => {
+                const { url } = await api<{ url: string }>(`/bookings/${b.id}/receipt`);
+                await WebBrowser.openBrowserAsync(url);
+              }} />
+            ) : null}
           </Section>
 
           {b.can_cancel ? (

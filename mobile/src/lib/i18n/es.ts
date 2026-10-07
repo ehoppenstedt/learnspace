@@ -143,6 +143,12 @@ const es = {
     delete: 'Eliminar mi cuenta', deleteConfirm: 'Esta acción no se puede deshacer. Conservamos solo lo que la ley exige (pagos y facturación), sin datos que te identifiquen.',
     deleteBlocked: 'Antes de eliminar tu cuenta debes resolver: {{items}}',
   },
+  testmode: {
+    banner: 'Modo de prueba: no se hará ningún cargo real.', sheetTitle: 'Pago de prueba', testCard: 'Tarjeta de prueba',
+    pay: 'Pagar {{amount}}', decline: 'Simular pago rechazado', declined: 'El pago fue rechazado (simulado). Puedes intentar de nuevo.',
+    kycTitle: 'Verificación de prueba', kycBody: 'En la versión final aquí se abre Stripe para verificar tu identidad y tu cuenta bancaria. En modo de prueba se completa al instante.',
+    receipt: 'Ver comprobante', statement: 'Estado de cuenta del mes', ratesPending: 'Tasas de retención por definir: por ahora se muestran en $0.',
+  },
   errors: {
     network: 'Sin conexión. Revisa tu internet.', generic: 'Algo salió mal. Inténtalo de nuevo.',
   },

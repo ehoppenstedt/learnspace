@@ -145,6 +145,12 @@ const en: Strings = {
     delete: 'Delete my account', deleteConfirm: "This can't be undone. We keep only what the law requires (payments and invoicing), without data that identifies you.",
     deleteBlocked: 'Before deleting your account, resolve: {{items}}',
   },
+  testmode: {
+    banner: 'Test mode: no real charge will be made.', sheetTitle: 'Test payment', testCard: 'Test card',
+    pay: 'Pay {{amount}}', decline: 'Simulate a declined payment', declined: 'The payment was declined (simulated). You can try again.',
+    kycTitle: 'Test verification', kycBody: 'In the final version this opens Stripe to verify your identity and bank account. In test mode it completes instantly.',
+    receipt: 'View receipt', statement: "This month's statement", ratesPending: 'Withholding rates not set yet: shown as $0 for now.',
+  },
   errors: {
     network: "You're offline. Check your connection.", generic: 'Something went wrong. Please try again.',
   },

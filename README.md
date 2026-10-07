@@ -9,7 +9,7 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 | 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | **Done, awaiting approval** | [docs/phase-2](docs/phase-2/README.md) |
 | 3 — Reviews, conduct scores, messaging, online experiences | Not started | |
 
-Deploying: [docs/deploy.md](docs/deploy.md).
+Deploying: [docs/deploy.md](docs/deploy.md). What runs in test mode and how to switch it to real: [docs/going-live.md](docs/going-live.md).
 
 ## Repository layout
 

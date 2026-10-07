@@ -50,7 +50,15 @@ def test_payment_methods(api, jobs, learner, provider_user):
     assert api.delete(f"/api/v1/me/payment-methods/{methods[0]['id']}").status_code == 204
 
 
-def test_dev_endpoints_are_off_outside_debug(api, provider_user, settings):
-    settings.DEBUG = False
+def test_test_mode_tools_work_on_staging_but_never_with_real_gateway_or_production(api, provider_user, settings):
     api.force_authenticate(provider_user)
+    settings.DEBUG, settings.APP_ENV = False, "staging"  # user-testing server
+    assert api.post("/api/v1/dev/onboarding/acct_x/complete").status_code == 200
+    settings.APP_ENV = "production"
     assert api.post("/api/v1/dev/onboarding/acct_x/complete").status_code == 404
+    settings.APP_ENV, settings.PAYMENTS_TEST_MODE = "staging", False  # real Stripe configured
+    assert api.post("/api/v1/dev/onboarding/acct_x/complete").status_code == 404
+
+
+def test_config_exposes_test_mode(api):
+    assert api.get("/api/v1/config").data["features"]["payments_test_mode"] is True

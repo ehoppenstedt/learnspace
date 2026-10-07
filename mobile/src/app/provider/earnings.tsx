@@ -1,7 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { Badge } from '@/components/ui';
+import * as WebBrowser from 'expo-web-browser';
+
+import { Badge, Button } from '@/components/ui';
+import { api } from '@/lib/api/client';
 import { useEarnings } from '@/lib/api/hooks';
 import { formatMoney, formatSessionDate } from '@/lib/utils/format';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -17,10 +20,20 @@ export default function Earnings() {
       keyExtractor={(x) => x.id}
       contentContainerStyle={{ padding: space.xl }}
       ListHeaderComponent={
-        <View style={styles.tiles}>
-          <Tile label={t('ops.upcomingPay')} value={formatMoney(totals?.upcoming_cents ?? 0, lang)} />
-          <Tile label={t('ops.onHold')} value={formatMoney(totals?.on_hold_cents ?? 0, lang)} />
-          <Tile label={t('ops.paid')} value={formatMoney(totals?.paid_cents ?? 0, lang)} />
+        <View>
+          <View style={styles.tiles}>
+            <Tile label={t('ops.upcomingPay')} value={formatMoney(totals?.upcoming_cents ?? 0, lang)} />
+            <Tile label={t('ops.onHold')} value={formatMoney(totals?.on_hold_cents ?? 0, lang)} />
+            <Tile label={t('ops.paid')} value={formatMoney(totals?.paid_cents ?? 0, lang)} />
+          </View>
+          {data.data && !data.data.withholding_configured ? (
+            <Text style={[type.caption, { marginBottom: space.md }]}>{t('testmode.ratesPending')}</Text>
+          ) : null}
+          <Button title={t('testmode.statement')} variant="secondary" icon="document-text-outline" style={{ marginBottom: space.lg }}
+            onPress={async () => {
+              const { url } = await api<{ url: string }>('/provider/statements');
+              await WebBrowser.openBrowserAsync(url);
+            }} />
         </View>
       }
       renderItem={({ item }) => (

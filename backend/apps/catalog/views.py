@@ -69,7 +69,8 @@ class ConfigView(PublicView):
             "cancellation_policies": PolicySerializer(
                 CancellationPolicy.objects.filter(is_active=True).prefetch_related("rules"), many=True
             ).data,
-            "features": {"online_experiences": settings.FEATURE_ONLINE_EXPERIENCES},
+            "features": {"online_experiences": settings.FEATURE_ONLINE_EXPERIENCES,
+                         "payments_test_mode": settings.PAYMENTS_TEST_MODE},
             "feed": {"default_radius_km": settings.FEED_DEFAULT_RADIUS_KM, "max_radius_km": settings.FEED_MAX_RADIUS_KM},
             "media": {
                 "max_images": settings.MEDIA_MAX_IMAGES_PER_EXPERIENCE,

@@ -156,7 +156,11 @@ class EarningsView(ProviderView):
         transfers = Transfer.objects.filter(provider=provider).select_related("booking__experience").order_by("-release_at")
         totals = {s: transfers.filter(status=s).aggregate(n=Sum("net_cents"))["n"] or 0
                   for s in ("scheduled", "on_hold", "sent")}
+        from apps.payments.models import WithholdingConfig
+
         return Response({
+            "withholding_configured": WithholdingConfig.objects.filter(isr_bps__gt=0).exists(),
+            "test_mode": settings.PAYMENTS_TEST_MODE,
             "totals": {"upcoming_cents": totals["scheduled"], "on_hold_cents": totals["on_hold"], "paid_cents": totals["sent"]},
             "transfers": [
                 {"id": str(t.pk), "booking_code": t.booking.code, "experience": t.booking.experience.title,
@@ -174,7 +178,8 @@ class EarningsView(ProviderView):
 
 
 def _dev_only():
-    if not (settings.DEBUG and settings.PAYMENT_GATEWAY == "fake"):
+    """Test-mode tools (simulated payment, simulated KYC). Never available with a real gateway."""
+    if not settings.PAYMENTS_TEST_MODE or settings.APP_ENV == "production":
         raise Http404
 
 
@@ -218,3 +223,55 @@ def _deliver_fake(body: bytes):
     # Local dev may run without a worker: process inline so the app reflects it immediately.
     for record in WebhookEvent.objects.filter(processed_at__isnull=True, gateway="fake"):
         process_webhook(record.pk)
+
+
+# ---------------------------------------------------------------------------
+# Receipts and statements (dummy backend today, PAC later). Signed links so they open
+# in a browser or share sheet without the app's token.
+# ---------------------------------------------------------------------------
+
+RECEIPT_SALT = "receipt"
+
+
+class BookingReceiptLinkView(APIView):
+    def get(self, request, pk):
+        from django.core import signing
+
+        booking = get_object_or_404(Booking, pk=pk, learner=request.user)
+        token = signing.dumps({"k": "booking", "id": str(booking.pk)}, salt=RECEIPT_SALT)
+        return Response({"url": request.build_absolute_uri(f"/api/v1/receipts/{token}")})
+
+
+class StatementLinkView(ProviderView):
+    def get(self, request):
+        from django.core import signing
+        from django.utils import timezone
+
+        month = request.query_params.get("month") or timezone.localdate().strftime("%Y-%m")
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            raise DomainError("invalid_month", _("Mes inválido."), status.HTTP_400_BAD_REQUEST)
+        token = signing.dumps({"k": "statement", "id": str(self.provider().pk), "m": month}, salt=RECEIPT_SALT)
+        return Response({"url": request.build_absolute_uri(f"/api/v1/receipts/{token}"), "month": month})
+
+
+def receipt_document(request, token):
+    from datetime import date
+
+    from django.core import signing
+
+    from apps.accounts.models import ProviderProfile
+    from apps.payments.receipts import get_receipt_backend
+
+    try:
+        data = signing.loads(token, salt=RECEIPT_SALT, max_age=60 * 60 * 24 * 7)
+    except signing.BadSignature:
+        raise Http404
+    backend = get_receipt_backend()
+    if data["k"] == "booking":
+        content_type, body = backend.booking_receipt(get_object_or_404(Booking, pk=data["id"]))
+    else:
+        year, month = (int(x) for x in data["m"].split("-"))
+        content_type, body = backend.provider_statement(get_object_or_404(ProviderProfile, pk=data["id"]), date(year, month, 1))
+    response = HttpResponse(body, content_type=content_type)
+    response["X-Robots-Tag"] = "noindex"
+    return response

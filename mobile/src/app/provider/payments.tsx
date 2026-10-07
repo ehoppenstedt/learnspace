@@ -24,7 +24,8 @@ export default function ProviderPayments() {
     try {
       const { url } = await api<{ url: string }>('/provider/payments/onboarding', { method: 'POST' });
       if (url.includes('/dev/fake-onboarding/')) {
-        // Local development: complete the fake KYC instantly.
+        // Test mode: no Stripe account yet, so verification completes instantly.
+        Alert.alert(t('testmode.kycTitle'), t('testmode.kycBody'));
         await api(`/dev/onboarding/${url.split('/').pop()}/complete`, { method: 'POST', auth: false });
       } else {
         await WebBrowser.openBrowserAsync(url);

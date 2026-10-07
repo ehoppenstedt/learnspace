@@ -192,6 +192,11 @@ STRIPE_WEBHOOK_SECRETS = env_list("STRIPE_WEBHOOK_SECRETS")  # platform endpoint
 STRIPE_EPHEMERAL_KEY_API_VERSION = env_str("STRIPE_EPHEMERAL_KEY_API_VERSION", "2020-08-27")
 FAKE_GATEWAY_WEBHOOK_SECRET = env_str("FAKE_GATEWAY_WEBHOOK_SECRET", "fake-dev-secret")
 PAYMENTS_REQUIRE_KYC = env_bool("PAYMENTS_REQUIRE_KYC", True)
+# Test mode = the fake gateway: no real money, simulated checkout and provider KYC. Usable on
+# development and staging (user testing); the production guard below refuses it.
+PAYMENTS_TEST_MODE = PAYMENT_GATEWAY == "fake"
+# Receipts/tax documents. "dummy" renders placeholder HTML (not a CFDI). Swap for a PAC adapter later.
+RECEIPT_BACKEND = env_str("RECEIPT_BACKEND", "apps.payments.receipts.DummyReceiptBackend")
 SEAT_HOLD_MINUTES = env_int("SEAT_HOLD_MINUTES", 10)
 MAX_SEATS_PER_BOOKING = env_int("MAX_SEATS_PER_BOOKING", 6)
 APPROVAL_WINDOW_HOURS = env_int("APPROVAL_WINDOW_HOURS", 24)
