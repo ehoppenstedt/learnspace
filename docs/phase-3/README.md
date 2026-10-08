@@ -1,6 +1,6 @@
 # Phase 3 — Reviews, conduct scores, messaging, online experiences
 
-Status: **built, tested, awaiting your approval.** Payments remain in test mode (see [going-live.md](../going-live.md)).
+Status: **approved 2026-10-08.** Payments remain in test mode (see [going-live.md](../going-live.md)).
 
 ## 1. What was built
 
@@ -95,11 +95,14 @@ Apple's rule 3.1.1 requires in-app purchase (30% commission, or 15% under the sm
 5. **Polling instead of websockets:** chat updates every 4 s while open, plus push. It's cheap on the USD 50 budget; websockets need Channels/Redis, which we excluded.
 6. **Messages are kept** for moderation. On account deletion they stay with the sender anonymized, the same as bookings.
 
-## 6. Open decisions
+## 6. Decisions (2026-10-08)
 
-1. **iOS online experiences:** option A, B or C (§4).
-2. **Public host replies to reviews:** now or later?
-3. **Conduct threshold default:** stays off by default (decided in Phase 2). Confirm, now that scores exist.
+| # | Decision | Status |
+|---|---|---|
+| 1 | Online experiences on iOS | **Option A:** hidden on iOS at launch (`ONLINE_EXPERIENCES_ON_IOS=false`), visible on Android and web. |
+| 2 | Public host replies to reviews | **Later** (backlog). |
+| 3 | Conduct threshold default | **Off by default** confirmed; each host opts in per experience. |
+| — | No-shows | **No rating in either direction.** |
 
 ## 7. Next
 

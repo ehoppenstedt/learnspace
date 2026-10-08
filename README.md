@@ -7,7 +7,7 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 | 0 — Design | Done | [docs/phase-0](docs/phase-0/00-README.md) |
 | 1 — Auth, discovery, provider creation, admin review | Done | [docs/phase-1](docs/phase-1/README.md) |
 | 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | Done (test mode) | [docs/phase-2](docs/phase-2/README.md) |
-| 3 — Reviews, conduct scores, messaging, online experiences | **Done, awaiting approval** | [docs/phase-3](docs/phase-3/README.md) |
+| 3 — Reviews, conduct scores, messaging, online experiences | Done | [docs/phase-3](docs/phase-3/README.md) |
 
 Deploying: [docs/deploy.md](docs/deploy.md). What runs in test mode and how to switch it to real: [docs/going-live.md](docs/going-live.md).
 
