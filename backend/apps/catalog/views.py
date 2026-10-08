@@ -46,7 +46,7 @@ from apps.catalog.serializers import (
 from apps.catalog.storage import LocalStorage, get_storage
 from apps.core.exceptions import DomainError
 from apps.core.permissions import IsProvider
-from apps.core.platform import online_allowed
+from apps.core.platform import client_platform, hide_group_online, online_allowed, visible_on_platform
 from apps.payments.pricing import current_fee_bps
 
 
@@ -71,7 +71,9 @@ class ConfigView(PublicView):
                 CancellationPolicy.objects.filter(is_active=True).prefetch_related("rules"), many=True
             ).data,
             "features": {"online_experiences": online_allowed(request),
-                         "payments_test_mode": settings.PAYMENTS_TEST_MODE},
+                         "payments_test_mode": settings.PAYMENTS_TEST_MODE,
+                         "app_store_test_mode": settings.APP_STORE_GATEWAY == "fake",
+                         "online_group_on_ios": settings.IOS_ONLINE_GROUP_PAYMENTS == "app_store"},
             "feed": {"default_radius_km": settings.FEED_DEFAULT_RADIUS_KM, "max_radius_km": settings.FEED_MAX_RADIUS_KM},
             "media": {
                 "max_images": settings.MEDIA_MAX_IMAGES_PER_EXPERIENCE,
@@ -103,6 +105,7 @@ def _filters_from(params: dict, user=None, request=None) -> feed_service.FeedFil
     return feed_service.FeedFilters(
         interest_category_ids=interests,
         allow_online=online_allowed(request) if request is not None else False,
+        hide_group_online=hide_group_online(request),
         origin=feed_service.resolve_origin(params.get("lat"), params.get("lng"), params.get("area")),
         radius_km=params["radius_km"],
         q=params["q"],
@@ -126,7 +129,7 @@ class FeedView(PublicView):
         fee_bps = current_fee_bps()
         items, next_offset = feed_service.feed(_filters_from(params, request.user, request), fee_bps, offset=params["offset"])
         return Response({
-            "results": ExperienceCardSerializer(items, many=True, context={"fee_bps": fee_bps}).data,
+            "results": ExperienceCardSerializer(items, many=True, context={"fee_bps": fee_bps, "platform": client_platform(request)}).data,
             "next_offset": next_offset,
         })
 
@@ -167,9 +170,10 @@ class ExperienceDetailView(PublicView):
         is_owner = request.user.is_authenticated and experience.provider_id == request.user.pk
         if experience.status not in (Experience.Status.LIVE,) and not is_owner:
             raise Http404
-        if experience.modality == Experience.Modality.ONLINE and not is_owner and not online_allowed(request):
+        if not is_owner and not visible_on_platform(request, experience):
             raise Http404
-        context = {"fee_bps": current_fee_bps(), "reveal_exact": can_see_exact_location(request.user, experience)}
+        context = {"fee_bps": current_fee_bps(), "reveal_exact": can_see_exact_location(request.user, experience),
+                   "platform": client_platform(request)}
         return Response(ExperienceDetailSerializer(experience, context=context).data)
 
 
@@ -184,7 +188,7 @@ class ProviderPublicView(PublicView):
         )
         return Response({
             "provider": ProviderPublicSerializer(provider).data,
-            "experiences": ExperienceCardSerializer(live, many=True, context={"fee_bps": fee_bps}).data,
+            "experiences": ExperienceCardSerializer(live, many=True, context={"fee_bps": fee_bps, "platform": client_platform(request)}).data,
         })
 
 
@@ -201,7 +205,8 @@ class SpacePublicView(PublicView):
             raise Http404
         return Response({
             "space": SpacePublicSerializer(space).data,
-            "experiences": ExperienceCardSerializer(live, many=True, context={"fee_bps": current_fee_bps()}).data,
+            "experiences": ExperienceCardSerializer(live, many=True, context={"fee_bps": current_fee_bps(),
+                                                                              "platform": client_platform(request)}).data,
         })
 
 

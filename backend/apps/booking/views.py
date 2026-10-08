@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core import signing
 from django.db.models import Prefetch
 from django.http import Http404, HttpResponse
@@ -32,21 +33,18 @@ class HoldsView(APIView):
     def post(self, request):
         data = HoldCreateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        from apps.catalog.models import Cohort, Experience, Session
-        from apps.core.exceptions import DomainError
-        from apps.core.platform import online_allowed
+        from apps.core.platform import payment_channel
 
-        target = (Session.objects.filter(pk=data.validated_data.get("session_id")).select_related("experience").first()
-                  or Cohort.objects.filter(pk=data.validated_data.get("cohort_id")).select_related("experience").first())
-        if target and target.experience.modality == Experience.Modality.ONLINE and not online_allowed(request):
-            raise DomainError("not_available_on_platform", "Online experiences aren't available on this device yet.", 403)
         result = services.create_hold(request.user, seats=data.validated_data["seats"],
                                       session_id=data.validated_data.get("session_id"),
-                                      cohort_id=data.validated_data.get("cohort_id"))
+                                      cohort_id=data.validated_data.get("cohort_id"),
+                                      channel_for=lambda experience, capacity, seats: payment_channel(request, experience, capacity, seats))
         return Response({
             "hold_id": result.hold.id, "expires_at": result.hold.expires_at, "seats": result.hold.seats,
             "price": {"listed_cents": result.listed_cents, "fee_cents": result.fee_cents, "total_cents": result.total_cents,
-                      "currency": "MXN"},
+                      "store_surcharge_cents": result.store_surcharge_cents, "currency": "MXN"},
+            "channel": result.hold.channel,
+            "credit_available_cents": result.credit_available_cents,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -80,16 +78,24 @@ class BookingsView(APIView):
     def post(self, request):
         data = BookingCreateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        booking, checkout = services.start_checkout(request.user, data.validated_data["hold_id"])
-        payment_sheet = None
-        if checkout:
+        booking, checkout = services.start_checkout(request.user, data.validated_data["hold_id"],
+                                                    use_credits=data.validated_data.get("use_credits", True))
+        payment_sheet = app_store = None
+        from apps.payments.services import StoreCheckout
+
+        if isinstance(checkout, StoreCheckout):
+            app_store = {"product_id": checkout.product_id, "amount_cents": checkout.amount_cents,
+                         "app_account_token": checkout.app_account_token, "test_mode": settings.APP_STORE_GATEWAY == "fake"}
+        elif checkout:
             payment_sheet = {
                 "payment_intent_client_secret": checkout.client_secret, "customer_id": checkout.customer_id,
                 "customer_ephemeral_key": checkout.ephemeral_key, "publishable_key": checkout.publishable_key,
                 "gateway": booking.payments.order_by("-created_at").values_list("gateway", flat=True).first(),
             }
         payment = booking.payments.order_by("-created_at").first()
-        return Response({"booking": BookingSerializer(booking).data, "payment_sheet": payment_sheet,
+        credit_used = sum(p.amount_cents for p in booking.payments.all() if p.gateway == "credit" and p.status == "succeeded")
+        return Response({"booking": BookingSerializer(booking).data, "payment_sheet": payment_sheet, "app_store": app_store,
+                         "credit_applied_cents": credit_used,
                          "requires_approval": bool(payment and payment.capture_manual)},
                         status=status.HTTP_201_CREATED)
 

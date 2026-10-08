@@ -47,9 +47,9 @@ class StripeGateway:
         }, options={"idempotency_key": f"customer-{user.pk}"})
         return customer.id
 
-    def create_checkout(self, *, booking, customer_id, capture_manual, idempotency_key):
+    def create_checkout(self, *, booking, amount_cents, customer_id, capture_manual, idempotency_key):
         intent = self._call(self.client.v1.payment_intents.create, params={
-            "amount": booking.total_cents,
+            "amount": amount_cents,
             "currency": "mxn",
             "customer": customer_id,
             "automatic_payment_methods": {"enabled": True},  # cards, Apple Pay, Google Pay
@@ -108,8 +108,9 @@ class StripeGateway:
 
     def transfer(self, *, amount_cents, destination, source_charge, group, idempotency_key):
         transfer = self._call(self.client.v1.transfers.create, params={
-            "amount": amount_cents, "currency": "mxn", "destination": destination,
-            "source_transaction": source_charge, "transfer_group": group,
+            "amount": amount_cents, "currency": "mxn", "destination": destination, "transfer_group": group,
+            # Without a source charge (App Store or credit bookings) the transfer comes from the platform balance.
+            **({"source_transaction": source_charge} if source_charge else {}),
         }, options={"idempotency_key": idempotency_key})
         return transfer.id
 

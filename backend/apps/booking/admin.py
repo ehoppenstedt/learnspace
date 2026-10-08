@@ -45,8 +45,8 @@ class AdminRefundForm(forms.Form):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ("code", "experience", "learner", "status", "seats", "total_cents", "starts_at", "created_at")
-    list_filter = ("status",)
+    list_display = ("code", "experience", "learner", "status", "channel", "seats", "total_cents", "starts_at", "created_at")
+    list_filter = ("status", "channel")
     search_fields = ("code", "learner__email", "experience__title")
     readonly_fields = [f.name for f in Booking._meta.fields]
     inlines = [BookingSessionInline, PaymentInline, CancellationInline]

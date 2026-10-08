@@ -7,6 +7,7 @@ de-duplicates by key, so nothing is ever paid twice.
 """
 
 import logging
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.db import transaction
@@ -46,31 +47,107 @@ def customer_id_for(user) -> str:
     return customer_id
 
 
-def start_payment(booking, *, capture_manual: bool) -> Checkout:
+def start_payment(booking, *, capture_manual: bool, amount_cents: int) -> Checkout:
     gateway = get_gateway()
     try:
         customer_id = customer_id_for(booking.learner)
-        checkout = gateway.create_checkout(booking=booking, customer_id=customer_id, capture_manual=capture_manual,
-                                           idempotency_key=f"checkout-{booking.pk}")
+        checkout = gateway.create_checkout(booking=booking, amount_cents=amount_cents, customer_id=customer_id,
+                                           capture_manual=capture_manual, idempotency_key=f"checkout-{booking.pk}")
     except GatewayError as exc:
         logger.error("checkout failed", extra={"booking_id": str(booking.pk), "error": str(exc)})
         booking.status = booking.Status.PAYMENT_FAILED
         booking.save(update_fields=["status", "updated_at"])
         raise DomainError("payment_unavailable", _("No pudimos iniciar el pago. Intenta de nuevo."), status.HTTP_502_BAD_GATEWAY)
     Payment.objects.create(booking=booking, gateway=gateway.name, external_id=checkout.payment_id,
-                           amount_cents=booking.total_cents, capture_manual=capture_manual)
+                           amount_cents=amount_cents, capture_manual=capture_manual)
     return checkout
 
 
-def existing_checkout(booking) -> Checkout | None:
+def existing_checkout(booking):
     """Retry of POST /bookings for the same hold: hand back the same payment, never a second one."""
-    payment = booking.payments.order_by("-created_at").first()
+    payment = booking.payments.exclude(gateway=CREDIT).order_by("-created_at").first()
     if payment is None or payment.status != Payment.Status.REQUIRES_PAYMENT:
         return None
+    if payment.gateway == APP_STORE:
+        return store_checkout(payment)
     gateway = get_gateway()
-    checkout = gateway.create_checkout(booking=booking, customer_id=customer_id_for(booking.learner),
+    checkout = gateway.create_checkout(booking=booking, amount_cents=payment.amount_cents, customer_id=customer_id_for(booking.learner),
                                        capture_manual=payment.capture_manual, idempotency_key=f"checkout-{booking.pk}")
     return checkout
+
+
+# ---------------------------------------------------------------------------
+# Credits and App Store purchases (see apps/payments/credits.py and appstore.py)
+# ---------------------------------------------------------------------------
+
+CREDIT, APP_STORE = "credit", "app_store"
+MIN_CARD_CHARGE_CENTS = 1000  # Stripe's minimum charge in MXN is $10
+
+
+@dataclass(frozen=True)
+class StoreCheckout:
+    """What the iOS app needs to start the In-App Purchase."""
+
+    payment_id: str
+    product_id: str
+    amount_cents: int
+    app_account_token: str  # the booking id; Apple signs it back inside the transaction
+
+
+def split_credit(channel: str, total_cents: int, available_cents: int) -> tuple[int, int]:
+    """(credit used, amount left to charge). App Store charges must land on a price point."""
+    from apps.payments.pricing import store_point_at_least
+
+    if available_cents <= 0:
+        return 0, total_cents
+    if available_cents >= total_cents:
+        return total_cents, 0
+    if channel == APP_STORE:
+        point = store_point_at_least(total_cents - available_cents)
+        if point is None or point >= total_cents:
+            return 0, total_cents
+        return total_cents - point, point
+    remainder = total_cents - available_cents
+    if remainder < MIN_CARD_CHARGE_CENTS:
+        used = max(total_cents - MIN_CARD_CHARGE_CENTS, 0)
+        return used, total_cents - used
+    return available_cents, remainder
+
+
+def pay_with_credit(booking, amount_cents: int) -> Payment | None:
+    """Must run inside the caller's transaction (after the booking row exists)."""
+    from apps.payments import credits
+
+    if amount_cents <= 0:
+        return None
+    credits.spend(booking.learner, amount_cents, booking=booking, key=f"spend-{booking.pk}")
+    return Payment.objects.create(booking=booking, gateway=CREDIT, external_id=f"credit-{booking.pk}", charge_id=f"credit-{booking.pk}",
+                                  amount_cents=amount_cents, status=Payment.Status.SUCCEEDED, method=CREDIT)
+
+
+def restore_credit(booking) -> int:
+    """Checkout abandoned or failed: give back the credit it had reserved."""
+    from apps.payments import credits
+
+    restored = 0
+    for payment in Payment.objects.select_for_update().filter(booking=booking, gateway=CREDIT, status=Payment.Status.SUCCEEDED):
+        credits.grant(booking.learner, payment.amount_cents, kind="restore", key=f"restore-{payment.pk}", booking=booking)
+        payment.status = Payment.Status.CANCELED
+        payment.save(update_fields=["status", "updated_at"])
+        restored += payment.amount_cents
+    return restored
+
+
+def start_store_payment(booking, *, amount_cents: int, capture_manual: bool) -> StoreCheckout:
+    payment = Payment.objects.create(booking=booking, gateway=APP_STORE, external_id=f"aps-{booking.pk}", amount_cents=amount_cents,
+                                     capture_manual=capture_manual)
+    return store_checkout(payment)
+
+
+def store_checkout(payment: Payment) -> StoreCheckout:
+    from apps.payments.pricing import product_id_for
+
+    return StoreCheckout(str(payment.pk), product_id_for(payment.amount_cents // 100), payment.amount_cents, str(payment.booking_id))
 
 
 def capture(booking) -> Payment:
@@ -102,9 +179,46 @@ def release_authorization(payment: Payment) -> None:
 # ---------------------------------------------------------------------------
 
 
-def refund_payment(payment: Payment, *, listed_cents: int, fee_cents: int, reason: str, cancellation=None, created_by=None) -> Refund:
-    """Records the refund and queues it. Must run inside the caller's transaction."""
-    total = listed_cents + fee_cents
+def refund_booking(booking, *, listed_cents: int, fee_cents: int, surcharge_cents: int = 0, reason: str, cancellation=None,
+                   created_by=None, store_already_refunded: bool = False) -> list[Refund]:
+    """Spreads one refund over the booking's payments: card/App Store first, then credit.
+    Amounts beyond what was actually charged (e.g. an unpaid authorization) are dropped."""
+    payments = list(Payment.objects.select_for_update().filter(
+        booking=booking, status__in=[Payment.Status.SUCCEEDED, Payment.Status.PARTIALLY_REFUNDED]).order_by("created_at"))
+    payments.sort(key=lambda p: p.gateway == CREDIT)
+    remaining = {"listed": listed_cents, "fee": fee_cents, "surcharge": surcharge_cents}
+    refunds = []
+    for payment in payments:
+        capacity = payment.amount_cents - payment.refunded_cents
+        part = {}
+        for key in ("listed", "fee", "surcharge"):
+            take = min(remaining[key], capacity)
+            part[key], remaining[key], capacity = take, remaining[key] - take, capacity - take
+        if sum(part.values()) > 0:
+            refunds.append(refund_payment(payment, listed_cents=part["listed"], fee_cents=part["fee"], surcharge_cents=part["surcharge"],
+                                          reason=reason, cancellation=cancellation, created_by=created_by,
+                                          execute=not (store_already_refunded and payment.gateway == APP_STORE)))
+    return refunds
+
+
+def refund_preview(booking, total_cents: int) -> dict:
+    """How a refund of this size would come back: to the card, or as credit (App Store, credit)."""
+    out = {"card_cents": 0, "credit_cents": 0}
+    left = total_cents
+    payments = sorted(booking.payments.filter(status__in=[Payment.Status.SUCCEEDED, Payment.Status.PARTIALLY_REFUNDED]),
+                      key=lambda p: (p.gateway == CREDIT, p.created_at))
+    for payment in payments:
+        take = min(left, payment.amount_cents - payment.refunded_cents)
+        out["credit_cents" if payment.gateway in (CREDIT, APP_STORE) else "card_cents"] += take
+        left -= take
+    return out
+
+
+def refund_payment(payment: Payment, *, listed_cents: int, fee_cents: int, reason: str, cancellation=None, created_by=None,
+                   surcharge_cents: int = 0, execute: bool = True) -> Refund:
+    """Records the refund and queues it. Must run inside the caller's transaction.
+    execute=False records a refund that already happened elsewhere (Apple refunded the learner)."""
+    total = listed_cents + fee_cents + surcharge_cents
     payment = Payment.objects.select_for_update().get(pk=payment.pk)
     if total <= 0:
         raise ValueError("refund must be positive")
@@ -112,7 +226,9 @@ def refund_payment(payment: Payment, *, listed_cents: int, fee_cents: int, reaso
         raise DomainError("refund_exceeds_payment", _("El reembolso excede el pago."))
     refund = Refund.objects.create(
         payment=payment, cancellation=cancellation, listed_refund_cents=listed_cents, fee_refund_cents=fee_cents,
-        total_refund_cents=total, reason=reason, created_by=created_by, idempotency_key=f"refund-{payment.pk}-{payment.refunds.count() + 1}",
+        surcharge_refund_cents=surcharge_cents, total_refund_cents=total, reason=reason, created_by=created_by,
+        idempotency_key=f"refund-{payment.pk}-{payment.refunds.count() + 1}",
+        status=Refund.Status.PENDING if execute else Refund.Status.SUCCEEDED, external_id="" if execute else "store",
     )
     payment.refunded_cents = F("refunded_cents") + total
     payment.save(update_fields=["refunded_cents", "updated_at"])
@@ -120,15 +236,25 @@ def refund_payment(payment: Payment, *, listed_cents: int, fee_cents: int, reaso
     payment.status = Payment.Status.REFUNDED if payment.refunded_cents == payment.amount_cents else Payment.Status.PARTIALLY_REFUNDED
     payment.save(update_fields=["status", "updated_at"])
     recompute_transfer(payment.booking)
-    from apps.payments.tasks import execute_refund_task
+    if execute:
+        from apps.payments.tasks import execute_refund_task
 
-    transaction.on_commit(lambda: execute_refund_task.defer(refund_id=str(refund.pk)))
+        transaction.on_commit(lambda: execute_refund_task.defer(refund_id=str(refund.pk)))
     return refund
 
 
 def execute_refund(refund_id) -> Refund:
     refund = Refund.objects.select_related("payment").get(pk=refund_id)
     if refund.status != Refund.Status.PENDING:
+        return refund
+    if refund.payment.gateway in (CREDIT, APP_STORE):
+        # Only Apple can refund App Store purchases: those (and credit) come back as credit.
+        from apps.payments import credits
+
+        entry = credits.grant(refund.payment.booking.learner, refund.total_refund_cents, kind="refund",
+                              key=f"refund-{refund.pk}", booking=refund.payment.booking, refund=refund)
+        refund.external_id, refund.status = f"credit-{entry.pk}", Refund.Status.SUCCEEDED
+        refund.save(update_fields=["external_id", "status", "updated_at"])
         return refund
     try:
         refund.external_id = get_gateway().refund(
@@ -230,14 +356,15 @@ def send_transfer(transfer_id) -> Transfer:
                                            Booking.Status.CANCELLED):
             return transfer
         account = PaymentAccount.objects.filter(provider=transfer.provider, payouts_enabled=True).first()
-        payment = transfer.booking.payments.exclude(charge_id="").order_by("-created_at").first()
-        if account is None or payment is None:
+        paid = transfer.booking.payments.exclude(charge_id="").exclude(status__in=[Payment.Status.CANCELED, Payment.Status.FAILED])
+        payment = paid.exclude(gateway__in=[CREDIT, APP_STORE]).order_by("-created_at").first()
+        if account is None or not paid.exists():
             transfer.status, transfer.hold_reason = Transfer.Status.ON_HOLD, "payouts_disabled" if account is None else "no_charge"
             transfer.save(update_fields=["status", "hold_reason", "updated_at"])
             return transfer
         try:
             transfer.external_id = get_gateway().transfer(
-                amount_cents=transfer.net_cents, destination=account.external_id, source_charge=payment.charge_id,
+                amount_cents=transfer.net_cents, destination=account.external_id, source_charge=payment.charge_id if payment else "",
                 group=transfer.booking.code, idempotency_key=f"transfer-{transfer.pk}",
             )
         except GatewayError:

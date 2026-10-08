@@ -13,6 +13,7 @@ class HoldCreateSerializer(serializers.Serializer):
 
 class BookingCreateSerializer(serializers.Serializer):
     hold_id = serializers.UUIDField()
+    use_credits = serializers.BooleanField(default=True)
 
 
 class CancelSerializer(serializers.Serializer):
@@ -74,7 +75,10 @@ class BookingSerializer(serializers.ModelSerializer):
         ]
 
     def get_price(self, obj):
+        paid = [p for p in obj.payments.all() if p.status not in ("canceled", "failed", "requires_payment")]
         return {"listed_cents": obj.listed_cents, "fee_cents": obj.fee_cents, "total_cents": obj.total_cents,
+                "store_surcharge_cents": obj.store_surcharge_cents, "channel": obj.channel,
+                "credit_cents": sum(p.amount_cents for p in paid if p.gateway == "credit"),
                 "fee_bps": obj.fee_bps_snapshot, "currency": "MXN"}
 
     def get_location(self, obj):

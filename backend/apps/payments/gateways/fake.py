@@ -37,8 +37,8 @@ class FakeGateway:
         self._record("ensure_customer", user=str(user.pk))
         return f"cus_fake_{uuid7().hex[:16]}"
 
-    def create_checkout(self, *, booking, customer_id, capture_manual, idempotency_key):
-        self._record("create_checkout", amount=booking.total_cents, capture_manual=capture_manual, key=idempotency_key)
+    def create_checkout(self, *, booking, amount_cents, customer_id, capture_manual, idempotency_key):
+        self._record("create_checkout", amount=amount_cents, capture_manual=capture_manual, key=idempotency_key)
         # Same idempotency key -> same payment, like a real processor.
         pid = f"pi_fake_{hashlib.sha256(idempotency_key.encode()).hexdigest()[:20]}"
         return Checkout(payment_id=pid, client_secret=f"{pid}_secret", customer_id=customer_id,

@@ -15,7 +15,7 @@ from apps.catalog.models import (
     Space,
 )
 from apps.catalog.services import pending_changes
-from apps.payments.pricing import price
+from apps.payments.pricing import price, store_price
 
 APPROX_RADIUS_M = 500
 
@@ -89,6 +89,16 @@ class PolicySerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 
+def display_price(experience, fee_bps: int, platform: str) -> dict:
+    """Per-seat price as this device will charge it: group online classes on iOS carry the App Store price."""
+    data = price(experience.listed_price_cents, fee_bps).as_dict()
+    if platform == "ios" and experience.modality == "online" and experience.default_capacity > 1:
+        store = store_price(data["listed_cents"], data["fee_cents"])
+        if store:
+            data.update(total_cents=store.total_cents, store_surcharge_cents=store.surcharge_cents, app_store=True)
+    return data
+
+
 class ExperienceCardSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     media = serializers.SerializerMethodField()
@@ -109,7 +119,7 @@ class ExperienceCardSerializer(serializers.ModelSerializer):
         return _media_list(obj, limit=5)
 
     def get_price(self, obj):
-        return price(obj.listed_price_cents, self.context["fee_bps"]).as_dict()
+        return display_price(obj, self.context["fee_bps"], self.context.get("platform", ""))
 
     def get_distance_m(self, obj):
         distance = getattr(obj, "distance", None)
@@ -332,7 +342,11 @@ class ProviderExperienceSerializer(serializers.ModelSerializer):
         return [str(m) for m in obj.experiencemedia_set.order_by("position").values_list("media_id", flat=True)]
 
     def get_price(self, obj):
-        return price(obj.listed_price_cents, self.context["fee_bps"]).as_dict()
+        data = price(obj.listed_price_cents, self.context["fee_bps"]).as_dict()
+        if obj.modality == "online" and obj.default_capacity > 1:  # what iPhone learners will pay (wizard preview)
+            store = store_price(data["listed_cents"], data["fee_cents"])
+            data["ios_total_cents"] = store.total_cents if store else None
+        return data
 
     def get_pending_changes(self, obj):
         return pending_changes(obj)

@@ -275,3 +275,74 @@ def receipt_document(request, token):
     response = HttpResponse(body, content_type=content_type)
     response["X-Robots-Tag"] = "noindex"
     return response
+
+
+# ---------------------------------------------------------------------------
+# App Store In-App Purchase and credits
+# ---------------------------------------------------------------------------
+
+
+class StoreTransactionView(APIView):
+    """The iOS app sends the StoreKit 2 signed transaction right after the purchase."""
+
+    def post(self, request, pk):
+        from apps.payments import appstore
+
+        if settings.APP_STORE_GATEWAY != "apple":
+            raise DomainError("store_test_mode", _("La App Store está en modo de prueba."), status.HTTP_409_CONFLICT)
+        token = str(request.data.get("signed_transaction", ""))
+        try:
+            txn = appstore.verify_transaction(token)
+        except appstore.InvalidStoreSignature:
+            raise DomainError("store_transaction_invalid", _("No pudimos validar la compra con Apple."), status.HTTP_400_BAD_REQUEST)
+        appstore.complete_purchase(request.user, pk, txn)
+        booking = get_object_or_404(Booking, pk=pk, learner=request.user)
+        return Response({"booking_id": str(booking.pk), "status": booking.status})
+
+
+@csrf_exempt
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def app_store_notification(request):
+    """App Store Server Notifications V2 (configure this URL in App Store Connect)."""
+    from apps.payments import appstore
+
+    try:
+        kind = appstore.handle_notification(str(request.data.get("signedPayload", "")))
+    except (appstore.InvalidStoreSignature, KeyError):
+        return Response({"error": "invalid"}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"received": kind})
+
+
+class CreditsView(APIView):
+    def get(self, request):
+        from apps.payments import credits
+        from apps.payments.models import CreditEntry
+
+        entries = CreditEntry.objects.filter(user=request.user).select_related("booking__experience").order_by("-created_at")[:50]
+        return Response({
+            "balance_cents": credits.balance(request.user),
+            "entries": [{"id": str(e.pk), "amount_cents": e.amount_cents, "kind": e.kind, "date": e.created_at,
+                         "experience": e.booking.experience.title if e.booking_id else None} for e in entries],
+        })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def dev_simulate_store_purchase(request, booking_id):
+    """Test mode: what the App Store sheet does, without Apple. outcome: succeeded | cancelled."""
+    from apps.payments import appstore
+    from apps.payments.pricing import product_id_for
+
+    if settings.APP_STORE_GATEWAY != "fake" or settings.APP_ENV == "production":
+        raise Http404
+    payment = get_object_or_404(Payment, booking_id=booking_id, booking__learner=request.user, gateway="app_store")
+    if request.data.get("outcome", "succeeded") == "cancelled":
+        return Response({"status": "cancelled"})
+    txn = appstore.StoreTransaction(
+        transaction_id=f"test-{payment.pk.hex[:16]}", original_transaction_id=f"test-{payment.pk.hex[:16]}",
+        product_id=product_id_for(payment.amount_cents // 100), app_account_token=str(booking_id),
+        bundle_id=settings.APPLE_BUNDLE_ID, environment="Sandbox", price_milli=payment.amount_cents * 10, currency="MXN")
+    appstore.complete_purchase(request.user, booking_id, txn)
+    return Response({"status": "succeeded"})

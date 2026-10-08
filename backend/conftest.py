@@ -194,7 +194,7 @@ def hold_and_checkout(api, learner, session=None, cohort=None, seats=1):
 
 
 def pay(api, jobs, booking, kind="payment_succeeded"):
-    payment = booking.payments.get()
+    payment = booking.payments.exclude(gateway="credit").get()
     res = post_fake_event(api, kind, payment.external_id, charge_id=f"ch_{payment.pk.hex[:8]}", method="card")
     assert res.status_code == 200
     run_jobs(jobs)

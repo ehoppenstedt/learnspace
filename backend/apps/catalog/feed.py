@@ -39,6 +39,7 @@ class FeedFilters:
     sort: str = "distance"
     interest_category_ids: list[int] = field(default_factory=list)
     allow_online: bool = False
+    hide_group_online: bool = False  # iOS without In-App Purchase (IOS_ONLINE_GROUP_PAYMENTS=hidden)
 
 
 def resolve_origin(lat: float | None, lng: float | None, area_slug: str | None) -> Point | None:
@@ -68,6 +69,8 @@ def base_queryset(filters: FeedFilters, fee_bps: int):
     )
     if not filters.allow_online:
         qs = qs.filter(modality=Experience.Modality.IN_PERSON)
+    elif filters.hide_group_online:
+        qs = qs.exclude(modality=Experience.Modality.ONLINE, default_capacity__gt=1)
     if filters.modality:
         qs = qs.filter(modality=filters.modality)
     if filters.categories:

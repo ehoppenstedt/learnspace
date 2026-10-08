@@ -128,6 +128,7 @@ class Refund(BaseModel):
     cancellation = models.ForeignKey("booking.Cancellation", null=True, blank=True, on_delete=models.PROTECT, related_name="refunds")
     listed_refund_cents = models.PositiveBigIntegerField()
     fee_refund_cents = models.PositiveBigIntegerField()
+    surcharge_refund_cents = models.PositiveBigIntegerField(default=0)
     total_refund_cents = models.PositiveBigIntegerField()
     reason = models.CharField(max_length=40)
     external_id = models.CharField(max_length=255, blank=True)
@@ -173,3 +174,29 @@ class WebhookEvent(BaseModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["gateway", "event_id"], name="uniq_webhook_event")]
+
+
+class CreditEntry(BaseModel):
+    """Append-only ledger of in-app credit (MXN centavos). Balance = sum(amount_cents).
+
+    Credits are how App Store purchases are refunded (only Apple can refund those), and they can
+    pay for any booking on any device.
+    """
+
+    class Kind(models.TextChoices):
+        REFUND = "refund"  # positive: a cancellation refunded as credit
+        SPEND = "spend"  # negative: used at checkout
+        RESTORE = "restore"  # positive: checkout abandoned/failed, credit given back
+        ADJUSTMENT = "adjustment"  # admin, either sign
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="credit_entries")
+    amount_cents = models.BigIntegerField()
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    booking = models.ForeignKey("booking.Booking", null=True, blank=True, on_delete=models.PROTECT, related_name="credit_entries")
+    refund = models.OneToOneField(Refund, null=True, blank=True, on_delete=models.PROTECT, related_name="credit_entry")
+    idempotency_key = models.CharField(max_length=120, unique=True)
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "created_at"])]

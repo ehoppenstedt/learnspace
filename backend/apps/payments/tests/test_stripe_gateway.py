@@ -65,7 +65,7 @@ def test_checkout_parameters(gateway):
     with mock.patch.object(gateway.client.v1.payment_intents, "create",
                            return_value=SimpleNamespace(id="pi_1", client_secret="pi_1_secret")) as create, \
          mock.patch.object(gateway.client.v1.ephemeral_keys, "create", return_value=SimpleNamespace(secret="ek_1")):
-        checkout = gateway.create_checkout(booking=booking, customer_id="cus_1", capture_manual=True, idempotency_key="checkout-b1")
+        checkout = gateway.create_checkout(booking=booking, amount_cents=55000, customer_id="cus_1", capture_manual=True, idempotency_key="checkout-b1")
     params = create.call_args.kwargs["params"]
     assert params["amount"] == 55000 and params["currency"] == "mxn"
     assert params["capture_method"] == "manual" and params["transfer_group"] == "ABC123"
@@ -101,3 +101,9 @@ def test_stripe_errors_become_gateway_errors(gateway):
     with mock.patch.object(gateway.client.v1.refunds, "create", side_effect=stripe.InvalidRequestError("nope", None)), \
          pytest.raises(GatewayError):
         gateway.refund(payment_external_id="pi_1", amount_cents=100, idempotency_key="k", reason="x")
+
+
+def test_transfer_without_source_charge_uses_platform_balance(gateway):
+    with mock.patch.object(gateway.client.v1.transfers, "create", return_value=SimpleNamespace(id="tr_2")) as create:
+        gateway.transfer(amount_cents=45500, destination="acct_1", source_charge="", group="ABC123", idempotency_key="transfer-2")
+    assert "source_transaction" not in create.call_args.kwargs["params"]

@@ -23,7 +23,7 @@ from apps.booking.models import Booking, BookingSession, Cancellation, SeatHold
 from apps.catalog import services as catalog
 from apps.catalog.models import Cohort, Experience, Session
 from apps.core.exceptions import DomainError
-from apps.payments.pricing import current_fee_bps, price
+from apps.payments.pricing import current_fee_bps, price, store_price
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 QUOTE_SALT = "cancellation-quote"
@@ -130,9 +130,12 @@ class HoldResult:
     listed_cents: int
     fee_cents: int
     total_cents: int
+    store_surcharge_cents: int = 0
+    credit_available_cents: int = 0
 
 
-def create_hold(user, *, seats: int, session_id=None, cohort_id=None) -> HoldResult:
+def create_hold(user, *, seats: int, session_id=None, cohort_id=None, channel_for=None) -> HoldResult:
+    """channel_for(experience, capacity, seats) -> 'card' | 'app_store' | None (not sold on this device)."""
     if bool(session_id) == bool(cohort_id):
         raise DomainError("invalid_target", _("Elige una fecha o un grupo."), status.HTTP_400_BAD_REQUEST)
     if not 1 <= seats <= settings.MAX_SEATS_PER_BOOKING:
@@ -153,6 +156,10 @@ def create_hold(user, *, seats: int, session_id=None, cohort_id=None) -> HoldRes
         start = _first_start(target)
         if start is None or start <= now:
             raise DomainError("already_started", _("Esta fecha ya comenzó."))
+        channel = channel_for(experience, target.capacity, seats) if channel_for else "card"
+        if channel is None:
+            raise DomainError("not_available_on_platform", _("Esta experiencia no está disponible en este dispositivo."),
+                              status.HTTP_403_FORBIDDEN)
         kw = _target_kwargs(target)
         # One live hold per learner per date: a new hold replaces the old one.
         SeatHold.objects.filter(user=user, status=SeatHold.Status.ACTIVE, **kw).update(status=SeatHold.Status.RELEASED)
@@ -160,11 +167,20 @@ def create_hold(user, *, seats: int, session_id=None, cohort_id=None) -> HoldRes
         available = available_seats(target)
         if seats > available:
             raise DomainError("seat_unavailable", _("Ya no hay suficientes lugares."), fields={"available": available})
+        quote = price(experience.listed_price_cents, current_fee_bps(), seats)
+        surcharge = 0
+        if channel == "app_store":
+            store = store_price(quote.listed_cents, quote.fee_cents)
+            if store is None:
+                raise DomainError("store_price_unavailable", _("Esta clase supera el precio máximo de la App Store."))
+            surcharge = store.surcharge_cents
         hold = SeatHold.objects.create(
-            user=user, experience=experience, seats=seats, expires_at=now + timedelta(minutes=settings.SEAT_HOLD_MINUTES), **kw
+            user=user, experience=experience, seats=seats, expires_at=now + timedelta(minutes=settings.SEAT_HOLD_MINUTES),
+            channel=channel, **kw
         )
-    quote = price(experience.listed_price_cents, current_fee_bps(), seats)
-    return HoldResult(hold, quote.listed_cents, quote.fee_cents, quote.total_cents)
+    from apps.payments import credits
+
+    return HoldResult(hold, quote.listed_cents, quote.fee_cents, quote.total_cents + surcharge, surcharge, credits.balance(user))
 
 
 def release_hold(user, hold_id) -> None:
@@ -203,7 +219,7 @@ def needs_approval(experience: Experience, learner) -> bool:
     return threshold is not None and score is not None and Decimal(score) < Decimal(threshold)
 
 
-def start_checkout(user, hold_id):
+def start_checkout(user, hold_id, *, use_credits: bool = True):
     """Creates the booking for a live hold and a payment at the gateway. Idempotent per hold."""
     from apps.payments import services as payments
 
@@ -220,15 +236,37 @@ def start_checkout(user, hold_id):
         target = hold.session or hold.cohort
         sessions = _sessions_of(target)
         quote = price(experience.listed_price_cents, current_fee_bps(), hold.seats)
+        surcharge = 0
+        if hold.channel == payments.APP_STORE:
+            store = store_price(quote.listed_cents, quote.fee_cents)
+            if store is None:
+                raise DomainError("store_price_unavailable", _("Esta clase supera el precio máximo de la App Store."))
+            surcharge = store.surcharge_cents
         booking = Booking.objects.create(
             code=_code(), learner=user, experience=experience, session=hold.session, cohort=hold.cohort, hold=hold,
-            seats=hold.seats, listed_cents=quote.listed_cents, fee_cents=quote.fee_cents, total_cents=quote.total_cents,
+            seats=hold.seats, listed_cents=quote.listed_cents, fee_cents=quote.fee_cents, total_cents=quote.total_cents + surcharge,
+            channel=hold.channel, store_surcharge_cents=surcharge,
             fee_bps_snapshot=quote.fee_bps, policy_snapshot=_policy_snapshot(experience),
             starts_at=sessions[0].starts_at, ends_at=sessions[-1].ends_at,
         )
         BookingSession.objects.bulk_create([BookingSession(booking=booking, session=s) for s in sessions])
         capture_manual = needs_approval(experience, user)
-    checkout = payments.start_payment(booking, capture_manual=capture_manual)
+        # Credit pays first; whatever is left goes to the card or the App Store.
+        from apps.payments import credits
+
+        available = credits.spendable(user) if use_credits else 0
+        credit_used, remainder = payments.split_credit(booking.channel, booking.total_cents, available)
+        credit_payment = payments.pay_with_credit(booking, credit_used)
+        if remainder == 0:
+            if capture_manual:
+                on_payment_authorized(credit_payment)
+            else:
+                on_payment_captured(credit_payment)
+            booking.refresh_from_db()
+            return booking, None
+        if booking.channel == payments.APP_STORE:
+            return booking, payments.start_store_payment(booking, amount_cents=remainder, capture_manual=capture_manual)
+    checkout = payments.start_payment(booking, capture_manual=capture_manual, amount_cents=remainder)
     return booking, checkout
 
 
@@ -257,7 +295,6 @@ def _notify(user, kind, booking, *, suffix="", **extra):
 
 
 def _sold_out(booking: Booking, payment) -> None:
-    from apps.payments import services as payments
 
     booking.status = Booking.Status.CANCELLED
     booking.save(update_fields=["status", "updated_at"])
@@ -266,12 +303,18 @@ def _sold_out(booking: Booking, payment) -> None:
         rule_snapshot={"reason": "sold_out"}, listed_refund_cents=booking.listed_cents, fee_refund_cents=booking.fee_cents,
         refund_cents=booking.total_cents, reason_code="sold_out",
     )
-    if payment.status == payment.Status.AUTHORIZED:
-        payments.release_authorization(payment)
-    else:
-        payments.refund_payment(payment, listed_cents=booking.listed_cents, fee_cents=booking.fee_cents,
-                                reason="sold_out", cancellation=cancellation)
+    _return_everything(booking, reason="sold_out", cancellation=cancellation)
     _notify(booking.learner, "sold_out_refund", booking, refund=_money(booking.total_cents))
+
+
+def _return_everything(booking, *, reason, cancellation=None) -> None:
+    """Release card authorizations and refund whatever was actually charged, surcharge included."""
+    from apps.payments import services as payments
+
+    for authorized in booking.payments.filter(status="authorized"):
+        payments.release_authorization(authorized)
+    payments.refund_booking(booking, listed_cents=booking.listed_cents, fee_cents=booking.fee_cents,
+                            surcharge_cents=booking.store_surcharge_cents, reason=reason, cancellation=cancellation)
 
 
 def on_payment_captured(payment) -> None:
@@ -280,6 +323,10 @@ def on_payment_captured(payment) -> None:
 
     booking = Booking.objects.select_for_update().get(pk=payment.booking_id)
     if booking.status in (Booking.Status.PENDING_PAYMENT, Booking.Status.PAYMENT_FAILED):
+        if booking.payments.filter(gateway="credit", status="canceled").exists():
+            # Paid after the abandoned checkout had already given its credit back: the booking is
+            # short of money, so refund this late payment instead of confirming.
+            return _sold_out(booking, payment)
         if not _count_seats(booking):
             return _sold_out(booking, payment)
     elif booking.status != Booking.Status.PENDING_APPROVAL:
@@ -337,14 +384,16 @@ def approve(provider_user, booking_id) -> Booking:
         booking = _provider_booking(provider_user, booking_id)
         if booking.status != Booking.Status.PENDING_APPROVAL:
             raise DomainError("not_pending", _("Esta reserva ya no está pendiente."))
-        payment = payments.capture(booking)
+        if booking.payments.filter(status="authorized").exists():
+            payment = payments.capture(booking)
+        else:  # paid up front (App Store or credit): nothing to capture
+            payment = booking.payments.filter(status="succeeded").order_by("-created_at").first()
         on_payment_captured(payment)
     booking.refresh_from_db()
     return booking
 
 
 def decline(booking_id, *, provider_user=None, reason="declined") -> Booking:
-    from apps.payments import services as payments
 
     with transaction.atomic():
         if provider_user:
@@ -356,9 +405,7 @@ def decline(booking_id, *, provider_user=None, reason="declined") -> Booking:
         _release_seats(booking)
         booking.status = Booking.Status.DECLINED
         booking.save(update_fields=["status", "updated_at"])
-        payment = booking.payments.order_by("-created_at").first()
-        if payment:
-            payments.release_authorization(payment)
+        _return_everything(booking, reason="declined")
         _notify(booking.learner, "approval_declined", booking)
     return booking
 
@@ -401,13 +448,18 @@ class Quote:
     hours_before_start: str
     rule: dict
     not_charged: bool = False
+    surcharge_refund_cents: int = 0
 
 
 def quote_cancellation(booking: Booking, now=None) -> Quote:
     now = now or timezone.now()
     if booking.status == Booking.Status.PENDING_APPROVAL:
-        # Card was only authorized: cancelling releases it; nothing to refund.
-        return Quote(str(booking.pk), 0, 0, 0, str(_hours_before(booking, now)), {"reason": "authorization_released"}, True)
+        charged = booking.payments.filter(status="succeeded").exists()
+        if not charged:
+            # Card was only authorized: cancelling releases it; nothing to refund.
+            return Quote(str(booking.pk), 0, 0, 0, str(_hours_before(booking, now)), {"reason": "authorization_released"}, True)
+        # Paid up front (App Store or credit) and not approved yet: everything comes back.
+        return full_refund_quote(booking, "pending_approval_cancelled")
     if booking.status != Booking.Status.CONFIRMED:
         raise DomainError("not_cancellable", _("Esta reserva no se puede cancelar."))
     if now >= booking.starts_at:
@@ -423,11 +475,13 @@ def quote_cancellation(booking: Booking, now=None) -> Quote:
         rule = {"applies_to": "learner_cancel", "listed_refund_pct": 0, "refund_fee": False}
     listed = _pct(booking.listed_cents, rule["listed_refund_pct"])
     fee = booking.fee_cents if rule["refund_fee"] else 0
+    # The App Store surcharge (Apple's commission and VAT) is never refunded on a learner cancellation.
     return Quote(str(booking.pk), listed, fee, listed + fee, f"{hours:.2f}", rule)
 
 
 def sign_quote(quote: Quote) -> str:
-    return signing.dumps({"b": quote.booking_id, "l": quote.listed_refund_cents, "f": quote.fee_refund_cents}, salt=QUOTE_SALT)
+    return signing.dumps({"b": quote.booking_id, "l": quote.listed_refund_cents, "f": quote.fee_refund_cents,
+                          "s": quote.surcharge_refund_cents}, salt=QUOTE_SALT)
 
 
 def cancel_by_learner(user, booking_id, quote_token: str) -> Cancellation:
@@ -441,7 +495,7 @@ def cancel_by_learner(user, booking_id, quote_token: str) -> Cancellation:
             raise DomainError("not_found", _("Reserva no encontrada."), status.HTTP_404_NOT_FOUND)
         quote = quote_cancellation(booking)
         # The learner is never refunded a different amount than the one they confirmed.
-        if (quote.listed_refund_cents, quote.fee_refund_cents) != (signed["l"], signed["f"]):
+        if (quote.listed_refund_cents, quote.fee_refund_cents, quote.surcharge_refund_cents) != (signed["l"], signed["f"], signed.get("s", 0)):
             raise DomainError("quote_changed", _("El reembolso cambió porque pasó el plazo. Revísalo de nuevo."))
         cancellation = _apply_cancellation(booking, quote, actor=user, role=Cancellation.Actor.LEARNER, reason_code="learner_request")
     _notify(booking.learner, "booking_cancelled_learner", booking, refund=_money(quote.refund_cents))
@@ -457,25 +511,24 @@ def _apply_cancellation(booking, quote: Quote, *, actor, role, reason_code, note
         rule_snapshot=quote.rule, listed_refund_cents=quote.listed_refund_cents, fee_refund_cents=quote.fee_refund_cents,
         refund_cents=quote.refund_cents, reason_code=reason_code, note=note,
     )
-    was_authorized_only = booking.status == Booking.Status.PENDING_APPROVAL
     _release_seats(booking)
     booking.status = Booking.Status.CANCELLED
     booking.save(update_fields=["status", "updated_at"])
-    payment = booking.payments.filter(status__in=["succeeded", "partially_refunded", "authorized"]).order_by("-created_at").first()
-    if payment and was_authorized_only:
-        payments.release_authorization(payment)
-    elif payment and quote.refund_cents:
-        payments.refund_payment(payment, listed_cents=quote.listed_refund_cents, fee_cents=quote.fee_refund_cents,
-                                reason=reason_code, cancellation=cancellation)
-    elif payment:
+    for authorized in booking.payments.filter(status="authorized"):
+        payments.release_authorization(authorized)
+    if quote.refund_cents:
+        payments.refund_booking(booking, listed_cents=quote.listed_refund_cents, fee_cents=quote.fee_refund_cents,
+                                surcharge_cents=quote.surcharge_refund_cents, reason=reason_code, cancellation=cancellation)
+    else:
         payments.recompute_transfer(booking)
     return cancellation
 
 
 def full_refund_quote(booking: Booking, reason: str) -> Quote:
+    not_charged = not booking.payments.filter(status__in=["succeeded", "partially_refunded"]).exists()
     return Quote(str(booking.pk), booking.listed_cents, booking.fee_cents, booking.total_cents,
                  str(_hours_before(booking)), {"reason": reason, "listed_refund_pct": 100, "refund_fee": True},
-                 booking.status == Booking.Status.PENDING_APPROVAL)
+                 not_charged, booking.store_surcharge_cents)
 
 
 def cancel_by_provider(provider_user, *, session_id=None, cohort_id=None, reason: str = "") -> int:
@@ -593,9 +646,18 @@ def complete_finished() -> int:
 
 def expire_unpaid() -> int:
     """Checkouts abandoned well past the hold: mark failed so they leave the learner's list."""
+    from apps.payments import services as payments
+
     cutoff = timezone.now() - timedelta(minutes=settings.SEAT_HOLD_MINUTES + 20)
-    return Booking.objects.filter(status=Booking.Status.PENDING_PAYMENT, created_at__lte=cutoff).update(
+    count = Booking.objects.filter(status=Booking.Status.PENDING_PAYMENT, created_at__lte=cutoff).update(
         status=Booking.Status.PAYMENT_FAILED)
+    # Credit reserved by checkouts that never completed goes back to the learner.
+    stale = Booking.objects.filter(status=Booking.Status.PAYMENT_FAILED, created_at__lte=cutoff,
+                                   payments__gateway="credit", payments__status="succeeded").distinct()
+    for booking in stale:
+        with transaction.atomic():
+            payments.restore_credit(booking)
+    return count
 
 
 def send_reminders() -> int:
@@ -632,7 +694,10 @@ def booking_ics(booking: Booking) -> str:
 
 
 def quote_as_dict(quote: Quote) -> dict:
+    from apps.payments.services import refund_preview
+
     data = asdict(quote)
+    data.update(refund_preview(Booking.objects.get(pk=quote.booking_id), quote.refund_cents))
     data["quote_token"] = sign_quote(quote)
     data["valid_for_seconds"] = QUOTE_TTL_SECONDS
     return data

@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from apps.moderation.admin import AuditedAdminMixin
-from apps.payments.models import FeeConfig, Payment, PaymentAccount, ProviderTaxProfile, WebhookEvent, WithholdingConfig
+from apps.payments.models import CreditEntry, FeeConfig, Payment, PaymentAccount, ProviderTaxProfile, WebhookEvent, WithholdingConfig
 
 
 class ImmutableConfigAdmin(AuditedAdminMixin, admin.ModelAdmin):
@@ -68,3 +68,26 @@ class WebhookEventAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(CreditEntry)
+class CreditEntryAdmin(AuditedAdminMixin, admin.ModelAdmin):
+    """Credit ledger. Entries are never edited; to correct one, add an adjustment (either sign)."""
+
+    list_display = ("created_at", "user", "amount_cents", "kind", "booking", "note")
+    list_filter = ("kind",)
+    search_fields = ("user__email", "booking__code", "note")
+    fields = ("user", "amount_cents", "note")
+    autocomplete_fields = ("user",)
+
+    def has_change_permission(self, request, obj=None):
+        return obj is None and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        import uuid
+
+        obj.kind, obj.created_by, obj.idempotency_key = CreditEntry.Kind.ADJUSTMENT, request.user, f"admin-{uuid.uuid4()}"
+        super().save_model(request, obj, form, change)

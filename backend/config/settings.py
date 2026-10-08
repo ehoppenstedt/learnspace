@@ -177,9 +177,11 @@ FFPROBE_BINARY = env_str("FFPROBE_BINARY", "ffprobe")
 # --- Marketplace --------------------------------------------------------------------
 DEFAULT_FEE_BPS = env_int("DEFAULT_FEE_BPS", 1000)  # used only if no FeeConfig row exists
 FEATURE_ONLINE_EXPERIENCES = env_bool("FEATURE_ONLINE_EXPERIENCES", True)
-# Apple guideline 3.1.1 vs 3.1.3(d): live one-to-many online classes sold inside an iOS app may
-# require In-App Purchase. Keep online experiences hidden on iOS until that review is decided.
-ONLINE_EXPERIENCES_ON_IOS = env_bool("ONLINE_EXPERIENCES_ON_IOS", False)
+# Apple guideline 3.1.1 / 3.1.3(d): live one-to-few and one-to-many online classes sold inside the
+# iOS app must use In-App Purchase; one-to-one online classes and in-person classes may use Stripe.
+#   app_store: group online classes are sold on iOS through In-App Purchase (decided 2026-10-08)
+#   hidden:    group online classes are not shown on iOS (fallback)
+IOS_ONLINE_GROUP_PAYMENTS = env_str("IOS_ONLINE_GROUP_PAYMENTS", "app_store")
 FEED_DEFAULT_RADIUS_KM = 10
 FEED_MAX_RADIUS_KM = 50
 FEED_PAGE_SIZE = 20
@@ -188,6 +190,20 @@ MAP_MAX_PINS = 300
 
 # --- Payments -------------------------------------------------------------------
 PAYMENT_GATEWAY = env_str("PAYMENT_GATEWAY", "fake")  # "stripe" in staging/production
+
+# --- App Store In-App Purchase -----------------------------------------------------------
+APP_STORE_GATEWAY = env_str("APP_STORE_GATEWAY", "fake")  # "apple" once the App Store Connect products exist
+APPLE_BUNDLE_ID = env_str("APPLE_BUNDLE_ID", "mx.learnspace.app")
+# SHA-256 of "Apple Root CA - G3" (DER), the anchor of StoreKit 2 signatures. Check it against
+# https://www.apple.com/certificateauthority/ when going live.
+APPLE_ROOT_CA_SHA256 = env_str("APPLE_ROOT_CA_SHA256", "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179")
+APPLE_ALLOWED_ENVIRONMENTS = env_list("APPLE_ALLOWED_ENVIRONMENTS", "Production" if APP_ENV == "production" else "Production,Sandbox")
+APP_STORE_COMMISSION_BPS = env_int("APP_STORE_COMMISSION_BPS", 1500)  # Small Business Program; 3000 above USD 1M/yr
+APP_STORE_VAT_BPS = env_int("APP_STORE_VAT_BPS", 1600)  # Apple remits IVA in Mexico out of the customer price
+# Whole-peso price points available as consumable products in App Store Connect. Replace with the
+# exact list you configure; the iOS price is the smallest point covering commission and VAT.
+IAP_PRICE_POINTS_MXN = [int(x) for x in env_list("IAP_PRICE_POINTS_MXN")] or (
+    [n * 50 - 1 for n in range(1, 21)] + [n * 100 - 1 for n in range(11, 51)] + [n * 500 - 1 for n in range(11, 21)])
 STRIPE_SECRET_KEY = env_str("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = env_str("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRETS = env_list("STRIPE_WEBHOOK_SECRETS")  # platform endpoint secret, Connect endpoint secret
@@ -265,5 +281,7 @@ if APP_ENV == "production":
         problems.append("FIELD_ENCRYPTION_KEYS is the development key")
     if PAYMENT_GATEWAY != "stripe":
         problems.append("PAYMENT_GATEWAY must be 'stripe'")
+    if IOS_ONLINE_GROUP_PAYMENTS == "app_store" and APP_STORE_GATEWAY != "apple":
+        problems.append("APP_STORE_GATEWAY must be 'apple' (or set IOS_ONLINE_GROUP_PAYMENTS=hidden)")
     if problems:
         raise ImproperlyConfigured("; ".join(problems))

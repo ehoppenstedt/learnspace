@@ -21,6 +21,7 @@ class SeatHold(BaseModel):
     seats = models.PositiveSmallIntegerField()
     expires_at = models.DateTimeField(db_index=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    channel = models.CharField(max_length=10, default="card", help_text="card | app_store (decided by device and experience)")
 
     class Meta:
         constraints = [
@@ -59,6 +60,9 @@ class Booking(BaseModel):
     listed_cents = models.PositiveBigIntegerField()
     fee_cents = models.PositiveBigIntegerField()
     total_cents = models.PositiveBigIntegerField()
+    channel = models.CharField(max_length=10, default="card", help_text="card: Stripe (or credits); app_store: Apple in-app purchase")
+    store_surcharge_cents = models.PositiveBigIntegerField(
+        default=0, help_text="Extra charged on the App Store price to cover Apple's commission and VAT. Not refundable on learner cancellation.")
     fee_bps_snapshot = models.PositiveIntegerField()
     policy_snapshot = models.JSONField()
     starts_at = models.DateTimeField(db_index=True, help_text="First session start (copied for queries and reminders)")
@@ -70,7 +74,9 @@ class Booking(BaseModel):
 
     class Meta:
         constraints = [
-            models.CheckConstraint(condition=models.Q(total_cents=models.F("listed_cents") + models.F("fee_cents")), name="booking_total_consistent"),
+            models.CheckConstraint(
+                condition=models.Q(total_cents=models.F("listed_cents") + models.F("fee_cents") + models.F("store_surcharge_cents")),
+                name="booking_total_consistent"),
         ]
         indexes = [models.Index(fields=["learner", "starts_at"])]
 
