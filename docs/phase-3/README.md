@@ -99,11 +99,11 @@ Apple's rule 3.1.1 requires in-app purchase (30% commission, or 15% under the sm
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Online experiences on iOS | **Option A:** hidden on iOS at launch (`ONLINE_EXPERIENCES_ON_IOS=false`), visible on Android and web. |
+| 1 | Online experiences on iOS | **Under revision (2026-10-08):** you prefer option C (in-app purchase on iOS). Until it's built, they stay hidden on iOS. |
 | 2 | Public host replies to reviews | **Later** (backlog). |
 | 3 | Conduct threshold default | **Off by default** confirmed; each host opts in per experience. |
 | — | No-shows | **No rating in either direction.** |
 
 ## 7. Next
 
-Phase 4 per the Phase 0 plan: Space Hosts (people who rent out spaces to instructors). Before real users, separately from that phase: switch to real Stripe/Twilio/EAS ([going-live.md](../going-live.md)), Sentry, and the "approve each new learner" [backlog](../backlog.md) item if you want it in.
+Space Hosts (original Phase 4) are deprioritized ([backlog](../backlog.md)). Before real users, separately from that phase: switch to real Stripe/Twilio/EAS ([going-live.md](../going-live.md)), Sentry, and the "approve each new learner" [backlog](../backlog.md) item if you want it in.

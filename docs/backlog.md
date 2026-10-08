@@ -7,3 +7,7 @@
 ## Public host replies to reviews
 
 Hosts answer a review publicly, once, shown under it. Moderated like reviews. Deferred in Phase 3 (2026-10-08).
+
+## Space Hosts (original Phase 4) — deprioritized 2026-10-08
+
+People who rent out studios/rooms to instructors. The data model already allows it (`Space.owner` points to a User), so it can be added later without migrations to existing tables. Deprioritized to launch with instructors and learners first.
