@@ -197,6 +197,19 @@ const en: Strings = {
     join: 'Join class', linkHidden: 'The link appears once your booking is confirmed.', where: 'Online class',
     whereBody: 'You\'ll get the link when you book.',
   },
+  appstore: {
+    sheetTitle: 'App Store purchase (test)', buy: 'Buy {{amount}}', surcharge: 'App Store commission',
+    note: 'On iPhone, group online classes are paid through the App Store and the price includes its commission. If you cancel, you get credit back.',
+    surchargeKept: 'The App Store commission ({{amount}}) is not refundable.', error: "The App Store purchase couldn't be completed.",
+    wizardNote: 'On iPhone it will show as {{total}} (includes the App Store commission). You receive the same.',
+  },
+  credits: {
+    title: 'Credit', balance: 'Available balance', empty: 'No activity yet.',
+    explain: 'Credit is applied automatically to your next booking, on any device.',
+    willUse: 'Credit', asCredit: 'Refunded as credit for your next booking.', paidWith: 'Paid with credit',
+    splitRefund: '{{card}} to your card and {{credit}} as credit.',
+    kind: { refund: 'Refund as credit', spend: 'Used on a booking', restore: 'Returned (payment not completed)', adjustment: 'Adjustment' },
+  },
   errors: {
     network: "You're offline. Check your connection.", generic: 'Something went wrong. Please try again.',
   },

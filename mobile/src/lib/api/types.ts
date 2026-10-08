@@ -1,4 +1,10 @@
-export type Money = { listed_cents: number; fee_cents: number; total_cents: number; currency: 'MXN' };
+export type Money = {
+  listed_cents: number; fee_cents: number; total_cents: number; currency: 'MXN';
+  /** Group online classes on iOS: App Store price point (includes Apple's commission). */
+  app_store?: boolean; store_surcharge_cents?: number;
+  /** Provider view: what iPhone learners will pay for a group online class. */
+  ios_total_cents?: number | null;
+};
 
 export type Category = { id: number; slug: string; name: string; icon: string };
 
@@ -99,7 +105,7 @@ export type AppConfig = {
   languages: string[];
   categories: Category[];
   cancellation_policies: Policy[];
-  features: { online_experiences: boolean; payments_test_mode: boolean };
+  features: { online_experiences: boolean; payments_test_mode: boolean; app_store_test_mode: boolean; online_group_on_ios: boolean };
   feed: { default_radius_km: number; max_radius_km: number };
   media: { max_images: number; max_videos: number; max_image_bytes: number; max_video_bytes: number; max_video_seconds: number };
   legal: { entity: string; rfc: string; privacy_notice_version: string };
@@ -197,7 +203,28 @@ export type ApiErrorBody = { error: { code: string; message: string; fields: Rec
 export type BookingStatus =
   | 'pending_payment' | 'pending_approval' | 'confirmed' | 'declined' | 'payment_failed' | 'cancelled' | 'completed' | 'no_show';
 
-export type Hold = { hold_id: string; expires_at: string; seats: number; price: Money };
+export type PaymentChannel = 'card' | 'app_store';
+
+export type Hold = {
+  hold_id: string;
+  expires_at: string;
+  seats: number;
+  price: Money & { store_surcharge_cents: number };
+  channel: PaymentChannel;
+  credit_available_cents: number;
+};
+
+export type StoreCheckout = { product_id: string; amount_cents: number; app_account_token: string; test_mode: boolean };
+
+export type CheckoutResponse = {
+  booking: Booking;
+  payment_sheet: PaymentSheetParams | null;
+  app_store: StoreCheckout | null;
+  credit_applied_cents: number;
+  requires_approval: boolean;
+};
+
+export type Credits = { balance_cents: number; entries: { id: string; amount_cents: number; kind: string; date: string; experience: string | null }[] };
 
 export type PaymentSheetParams = {
   payment_intent_client_secret: string;
@@ -216,7 +243,10 @@ export type Booking = {
   ends_at: string;
   experience: { id: string; title: string; cover: Media | null; category: string | null; offering_type: OfferingType; modality: Modality };
   sessions: { id: string; starts_at: string; ends_at: string; status: string; attendance: string }[];
-  price: { listed_cents: number; fee_cents: number; total_cents: number; fee_bps: number; currency: 'MXN' };
+  price: {
+    listed_cents: number; fee_cents: number; total_cents: number; fee_bps: number; currency: 'MXN';
+    store_surcharge_cents: number; channel: PaymentChannel; credit_cents: number;
+  };
   location:
     | { online?: undefined; approximate: false; lat: number; lng: number; address_line: string; address_reference: string | null; neighborhood: string; space_name: string }
     | { online?: undefined; approximate: true; lat: number; lng: number; neighborhood: string }
@@ -240,6 +270,9 @@ export type CancellationQuote = {
   not_charged: boolean;
   quote_token: string;
   valid_for_seconds: number;
+  surcharge_refund_cents: number;
+  card_cents: number;
+  credit_cents: number;
 };
 
 export type RosterAttendee = {

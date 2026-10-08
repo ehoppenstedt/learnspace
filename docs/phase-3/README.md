@@ -99,7 +99,7 @@ Apple's rule 3.1.1 requires in-app purchase (30% commission, or 15% under the sm
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Online experiences on iOS | **Under revision (2026-10-08):** you prefer option C (in-app purchase on iOS). Until it's built, they stay hidden on iOS. |
+| 1 | Online experiences on iOS | **Option C** (In-App Purchase), built in [Phase 4](../phase-4/README.md). |
 | 2 | Public host replies to reviews | **Later** (backlog). |
 | 3 | Conduct threshold default | **Off by default** confirmed; each host opts in per experience. |
 | — | No-shows | **No rating in either direction.** |

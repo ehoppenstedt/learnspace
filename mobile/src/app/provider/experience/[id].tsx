@@ -259,6 +259,12 @@ export default function ExperienceWizard() {
               <View style={styles.pricePreview}>
                 <Text style={type.body}>{t('wizard.learnersPay', { total: `${formatMoney(preview.total_cents, i18n.language)} MXN` })}</Text>
                 <Text style={[type.small, { marginTop: 4 }]}>{t('wizard.youReceive', { listed: `${formatMoney(listedCents, i18n.language)} MXN` })}</Text>
+                {draft.modality === 'online' && Number(draft.default_capacity) > 1 && exp?.price?.ios_total_cents
+                  && exp.listed_price_cents === listedCents ? (
+                  <Text style={[type.small, { marginTop: 4 }]}>
+                    {t('appstore.wizardNote', { total: `${formatMoney(exp.price.ios_total_cents, i18n.language)} MXN` })}
+                  </Text>
+                ) : null}
               </View>
             ) : null}
             <Field label={t('wizard.capacity')} value={draft.default_capacity} onChangeText={(v) => set('default_capacity', v.replace(/\D/g, ''))} keyboardType="number-pad" />

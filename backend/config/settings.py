@@ -193,7 +193,7 @@ PAYMENT_GATEWAY = env_str("PAYMENT_GATEWAY", "fake")  # "stripe" in staging/prod
 
 # --- App Store In-App Purchase -----------------------------------------------------------
 APP_STORE_GATEWAY = env_str("APP_STORE_GATEWAY", "fake")  # "apple" once the App Store Connect products exist
-APPLE_BUNDLE_ID = env_str("APPLE_BUNDLE_ID", "mx.learnspace.app")
+APPLE_BUNDLE_ID = env_str("APPLE_BUNDLE_ID", "com.learnspace.app")
 # SHA-256 of "Apple Root CA - G3" (DER), the anchor of StoreKit 2 signatures. Check it against
 # https://www.apple.com/certificateauthority/ when going live.
 APPLE_ROOT_CA_SHA256 = env_str("APPLE_ROOT_CA_SHA256", "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179")

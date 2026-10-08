@@ -53,6 +53,6 @@ class DevCorsMiddleware:
             response = self.get_response(request)
         if allowed:
             response["Access-Control-Allow-Origin"] = origin
-            response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept-Language"
+            response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept-Language, X-Client-Platform"
             response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         return response

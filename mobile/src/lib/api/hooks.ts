@@ -20,6 +20,7 @@ import type {
   RosterAttendee,
   SavedCard,
   ChatMessage,
+  Credits,
   ExperienceReviews,
   MyConduct,
   PendingReviews,
@@ -227,4 +228,8 @@ export function useThreadMessages(id: string | undefined) {
     enabled: Boolean(id),
     refetchInterval: 4_000,
   });
+}
+
+export function useCredits(enabled = true) {
+  return useQuery({ queryKey: ['me', 'credits'], queryFn: () => api<Credits>('/me/credits'), enabled });
 }

@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Chip, Section } from '@/components/ui';
-import { usePendingReviews, useUnreadCount } from '@/lib/api/hooks';
+import { useCredits, usePendingReviews, useUnreadCount } from '@/lib/api/hooks';
+import { formatMoney } from '@/lib/utils/format';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { setLanguage } from '@/lib/i18n';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -13,6 +14,7 @@ export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { isLoggedIn, me, signOut } = useAuth();
   const unread = useUnreadCount(isLoggedIn);
+  const credits = useCredits(isLoggedIn);
   const pending = usePendingReviews(isLoggedIn);
   const owed = (pending.data?.reviews.length ?? 0) + (pending.data?.conduct_ratings.length ?? 0);
 
@@ -55,6 +57,10 @@ export default function ProfileScreen() {
       <Row icon="heart-outline" label={t('profile.interests')} onPress={() => router.push('/profile/interests')} />
       <Row icon="notifications-outline" label={t('settings.notifications')} onPress={() => router.push('/profile/notifications')} />
       <Row icon="card-outline" label={t('settings.cards')} onPress={() => router.push('/profile/cards')} />
+      {credits.data?.balance_cents || credits.data?.entries.length ? (
+        <Row icon="wallet-outline" label={t('credits.title')} value={`${formatMoney(credits.data.balance_cents, i18n.language)} MXN`}
+          onPress={() => router.push('/profile/credits')} />
+      ) : null}
       <Row icon="ribbon-outline" label={t('profile.conduct')} value={me?.conduct_score ? Number(me.conduct_score).toFixed(1) : t('profile.conductNew')}
         onPress={() => router.push('/profile/conduct')} />
       <Row icon="shield-outline" label={t('profile.privacy')} onPress={() => router.push('/profile/privacy')} />

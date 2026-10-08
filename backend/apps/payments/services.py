@@ -236,7 +236,9 @@ def refund_payment(payment: Payment, *, listed_cents: int, fee_cents: int, reaso
     payment.status = Payment.Status.REFUNDED if payment.refunded_cents == payment.amount_cents else Payment.Status.PARTIALLY_REFUNDED
     payment.save(update_fields=["status", "updated_at"])
     recompute_transfer(payment.booking)
-    if execute:
+    if execute and payment.gateway in (CREDIT, APP_STORE):
+        execute_refund(refund.pk)  # credit is our own ledger: no processor call, so no job needed
+    elif execute:
         from apps.payments.tasks import execute_refund_task
 
         transaction.on_commit(lambda: execute_refund_task.defer(refund_id=str(refund.pk)))

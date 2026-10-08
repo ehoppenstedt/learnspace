@@ -8,6 +8,7 @@ Two-sided marketplace for learning experiences in Mexico City: independent instr
 | 1 — Auth, discovery, provider creation, admin review | Done | [docs/phase-1](docs/phase-1/README.md) |
 | 2 — Booking, payments (Stripe Connect), cancellations, notifications, learner profile | Done (test mode) | [docs/phase-2](docs/phase-2/README.md) |
 | 3 — Reviews, conduct scores, messaging, online experiences | Done | [docs/phase-3](docs/phase-3/README.md) |
+| 4 — Online classes on iPhone (App Store), credits, pilot readiness | **Done, awaiting approval** | [docs/phase-4](docs/phase-4/README.md) |
 
 Deploying: [docs/deploy.md](docs/deploy.md). What runs in test mode and how to switch it to real: [docs/going-live.md](docs/going-live.md).
 
@@ -66,7 +67,7 @@ Checks:
 
 ```bash
 cd backend && . .venv/bin/activate
-pytest                      # 235 tests (needs the PostGIS database above)
+pytest                      # 259 tests (needs the PostGIS database above)
 ruff check .
 python manage.py bench_feed # feed latency through the full Django stack
 ```

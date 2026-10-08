@@ -11,9 +11,12 @@ import { listenForNotificationTaps, registerForPush } from '@/lib/push';
 import { restoreLanguage } from '@/lib/i18n'; // also initializes i18next
 import { FiltersProvider } from '@/lib/state/FiltersContext';
 import { LocationProvider } from '@/lib/state/LocationContext';
+import { initMonitoring, wrapRoot } from '@/lib/monitoring';
 import { colors } from '@/theme/tokens';
 
-export default function RootLayout() {
+initMonitoring();
+
+function RootLayout() {
   const { t } = useTranslation();
   const [queryClient] = useState(
     () =>
@@ -74,6 +77,7 @@ export default function RootLayout() {
                 <Stack.Screen name="provider/rate/[id]" options={{ title: '' }} />
                 <Stack.Screen name="provider/reviews" options={{ title: t('reviews.received') }} />
                 <Stack.Screen name="profile/conduct" options={{ title: t('conduct.title') }} />
+                <Stack.Screen name="profile/credits" options={{ title: t('credits.title') }} />
                 <Stack.Screen name="inbox/index" options={{ title: t('inbox.title') }} />
                 <Stack.Screen name="inbox/[id]" options={{ title: '' }} />
               </Stack>
@@ -94,3 +98,5 @@ function PushBridge() {
   }, [isLoggedIn]);
   return null;
 }
+
+export default wrapRoot(RootLayout);

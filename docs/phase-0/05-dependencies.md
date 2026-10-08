@@ -90,3 +90,12 @@ Not installed yet (arrive with the phase that needs them): `@stripe/stripe-react
 | `expo-web-browser` | Opens Stripe-hosted provider onboarding (KYC) in an in-app browser. |
 
 Built in-house instead of adding packages: TOTP for admin 2FA (RFC 6238, ~30 lines), `.ics` generation (RFC 5545, ~40 lines), Twilio and Expo push clients (plain HTTPS).
+
+## 7. Phase 4 additions
+
+| Package | Why |
+|---|---|
+| `expo-iap` | StoreKit 2 In-App Purchase for group online classes on iOS (Apple guideline 3.1.1). Requires a development build. |
+| `@sentry/react-native` | Crash reporting for pilot builds; inactive without `EXPO_PUBLIC_SENTRY_DSN`. |
+
+Built in-house: StoreKit 2 JWS verification (certificate chain to the pinned Apple root, ~60 lines with `cryptography` + `PyJWT`, both already installed), credit ledger.

@@ -13,7 +13,7 @@ export type TestOutcome = 'succeeded' | 'failed' | 'cancelled';
  * Stand-in for Stripe's payment sheet while there is no Stripe account (user testing).
  * Never collects card data: the test card is fixed and shown, not typed.
  */
-export function TestPaymentSheet({ amountCents, onResult }: { amountCents: number; onResult: (o: TestOutcome) => void }) {
+export function TestPaymentSheet({ amountCents, onResult, store = false }: { amountCents: number; onResult: (o: TestOutcome) => void; store?: boolean }) {
   const { t, i18n } = useTranslation();
   const amount = `${formatMoney(amountCents, i18n.language)} MXN`;
   return (
@@ -24,15 +24,20 @@ export function TestPaymentSheet({ amountCents, onResult }: { amountCents: numbe
           <Ionicons name="flask-outline" size={16} color={colors.warning} />
           <Text style={[type.smallStrong, { color: colors.warning, marginLeft: 6, flex: 1 }]}>{t('testmode.banner')}</Text>
         </View>
-        <Text style={type.title}>{t('testmode.sheetTitle')}</Text>
+        <Text style={type.title}>{store ? t('appstore.sheetTitle') : t('testmode.sheetTitle')}</Text>
         <Text style={[type.display, { marginVertical: space.md }]}>{amount}</Text>
         <View style={styles.card}>
-          <Ionicons name="card" size={22} color={colors.text} />
-          <Text style={[type.body, { marginLeft: space.md, flex: 1 }]}>VISA •••• 4242</Text>
+          <Ionicons name={store ? 'logo-apple' : 'card'} size={22} color={colors.text} />
+          <Text style={[type.body, { marginLeft: space.md, flex: 1 }]}>{store ? 'App Store · Sandbox' : 'VISA •••• 4242'}</Text>
           <Text style={type.caption}>{t('testmode.testCard')}</Text>
         </View>
-        <Button title={t('testmode.pay', { amount })} onPress={() => onResult('succeeded')} />
-        <Button title={t('testmode.decline')} variant="ghost" onPress={() => onResult('failed')} />
+        <Button title={store ? t('appstore.buy', { amount }) : t('testmode.pay', { amount })} variant={store ? 'dark' : 'primary'}
+          onPress={() => onResult('succeeded')} />
+        {store ? (
+          <Button title={t('common.cancel')} variant="ghost" onPress={() => onResult('cancelled')} />
+        ) : (
+          <Button title={t('testmode.decline')} variant="ghost" onPress={() => onResult('failed')} />
+        )}
       </View>
     </Modal>
   );

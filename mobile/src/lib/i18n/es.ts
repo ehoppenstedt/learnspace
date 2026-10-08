@@ -195,6 +195,19 @@ const es = {
     join: 'Entrar a la clase', linkHidden: 'El enlace aparece al confirmar tu reserva.', where: 'Clase en línea',
     whereBody: 'Recibirás el enlace al reservar.',
   },
+  appstore: {
+    sheetTitle: 'Compra en App Store (prueba)', buy: 'Comprar {{amount}}', surcharge: 'Comisión de App Store',
+    note: 'En iPhone, las clases grupales en línea se pagan con la App Store y el precio incluye su comisión. Si cancelas, te devolvemos en créditos.',
+    surchargeKept: 'La comisión de App Store ({{amount}}) no es reembolsable.', error: 'No se pudo completar la compra en la App Store.',
+    wizardNote: 'En iPhone se verá a {{total}} (incluye la comisión de App Store). Tú recibes lo mismo.',
+  },
+  credits: {
+    title: 'Créditos', balance: 'Saldo disponible', empty: 'Aún no tienes movimientos.',
+    explain: 'Los créditos se usan automáticamente en tu siguiente reserva, en cualquier dispositivo.',
+    willUse: 'Créditos', asCredit: 'Se devuelve como créditos para tu próxima reserva.', paidWith: 'Pagado con créditos',
+    splitRefund: '{{card}} a tu tarjeta y {{credit}} en créditos.',
+    kind: { refund: 'Reembolso en créditos', spend: 'Usado en una reserva', restore: 'Devuelto (pago no completado)', adjustment: 'Ajuste' },
+  },
   errors: {
     network: 'Sin conexión. Revisa tu internet.', generic: 'Algo salió mal. Inténtalo de nuevo.',
   },

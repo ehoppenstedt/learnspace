@@ -52,7 +52,7 @@ def simulate(api, booking):
 
 def test_store_price_covers_commission_and_vat(settings):
     p = store_price(50000, 5000)
-    assert (p.total_cents, p.surcharge_cents, p.product_id) == (74900, 19900, "mx.learnspace.app.class.mxn749")
+    assert (p.total_cents, p.surcharge_cents, p.product_id) == (74900, 19900, "com.learnspace.app.class.mxn749")
     net = p.total_cents * 10000 // 11600 * 8500 // 10000  # after Apple keeps VAT and 15%
     assert net >= 50000 + 5000 * 10000 // 11600  # provider's price + our fee net of VAT
     assert store_price(10_000_000, 1_000_000) is None  # above the highest price point
@@ -61,7 +61,7 @@ def test_store_price_covers_commission_and_vat(settings):
 def test_ios_group_online_pays_through_app_store(api, jobs, learner, online):
     booking, data = ios_checkout(api, learner, online)
     assert data["payment_sheet"] is None
-    assert data["app_store"] == {"product_id": "mx.learnspace.app.class.mxn749", "amount_cents": 74900,
+    assert data["app_store"] == {"product_id": "com.learnspace.app.class.mxn749", "amount_cents": 74900,
                                  "app_account_token": str(booking.pk), "test_mode": True}
     assert (booking.channel, booking.total_cents, booking.store_surcharge_cents) == ("app_store", 74900, 19900)
     assert not any(op == "create_checkout" for op, _ in FakeGateway.calls)  # Stripe never involved
@@ -214,8 +214,8 @@ def apple(settings):
 
 def _txn(booking, amount=74900, **over):
     return {"transactionId": f"2000000{booking.code}", "originalTransactionId": f"2000000{booking.code}",
-            "productId": f"mx.learnspace.app.class.mxn{amount // 100}", "appAccountToken": str(booking.pk),
-            "bundleId": "mx.learnspace.app", "environment": "Sandbox", "price": amount * 10, "currency": "MXN",
+            "productId": f"com.learnspace.app.class.mxn{amount // 100}", "appAccountToken": str(booking.pk),
+            "bundleId": "com.learnspace.app", "environment": "Sandbox", "price": amount * 10, "currency": "MXN",
             "type": "Consumable", **over}
 
 
@@ -230,7 +230,7 @@ def test_signed_transaction_confirms_booking(api, jobs, learner, online, apple):
 
 
 @pytest.mark.parametrize("override,problem", [
-    ({"productId": "mx.learnspace.app.class.mxn49"}, "product"),
+    ({"productId": "com.learnspace.app.class.mxn49"}, "product"),
     ({"appAccountToken": "00000000-0000-0000-0000-000000000000"}, "account_token"),
     ({"bundleId": "com.other.app"}, "bundle"),
     ({"price": 4900}, "price"),
@@ -267,7 +267,7 @@ def test_transaction_cannot_pay_two_bookings(api, learner, provider_user, online
 
 def _notify_refund(api, apple, booking, uuid="n-1"):
     payload = {"notificationType": "REFUND", "notificationUUID": uuid,
-               "data": {"bundleId": "mx.learnspace.app", "signedTransactionInfo": apple(_txn(booking))}}
+               "data": {"bundleId": "com.learnspace.app", "signedTransactionInfo": apple(_txn(booking))}}
     return api.post("/api/v1/webhooks/app-store", {"signedPayload": apple(payload)}, format="json")
 
 

@@ -80,7 +80,9 @@
         {
           "color": "#5A31F4"
         }
-      ]
+      ],
+      "expo-iap",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": false

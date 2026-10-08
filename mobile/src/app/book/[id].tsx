@@ -11,7 +11,8 @@ import { TestPaymentSheet, type TestOutcome } from '@/components/TestPaymentShee
 import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
 import { useConfig, useExperience } from '@/lib/api/hooks';
-import type { Booking, Hold, PaymentSheetParams } from '@/lib/api/types';
+import type { CheckoutResponse, Hold } from '@/lib/api/types';
+import { buyOnAppStore } from '@/lib/iap';
 import { collectPayment } from '@/lib/payments';
 import { formatCountdown, formatMoney, formatSessionDate, formatTimeRange, seatsLabel } from '@/lib/utils/format';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -32,7 +33,7 @@ export default function BookScreen() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const paid = useRef(false);
-  const [testSheet, setTestSheet] = useState<{ amount: number; resolve: (o: TestOutcome) => void } | null>(null);
+  const [testSheet, setTestSheet] = useState<{ amount: number; store?: boolean; resolve: (o: TestOutcome) => void } | null>(null);
 
   // Countdown tick while a hold is active.
   useEffect(() => {
@@ -75,12 +76,24 @@ export default function BookScreen() {
     if (!hold) return;
     setBusy(true);
     try {
-      const res = await api<{ booking: Booking; payment_sheet: PaymentSheetParams | null; requires_approval: boolean }>(
-        '/bookings', { method: 'POST', body: { hold_id: hold.hold_id } });
+      const res = await api<CheckoutResponse>('/bookings', { method: 'POST', body: { hold_id: hold.hold_id } });
       const sheet = res.payment_sheet;
-      if (sheet?.gateway === 'fake') {
+      const toPay = hold.price.total_cents - res.credit_applied_cents;
+      if (res.app_store?.test_mode) {
+        // App Store test mode (no Apple account yet): stand-in purchase sheet, the API simulates Apple.
+        const outcome = await new Promise<TestOutcome>((resolve) => setTestSheet({ amount: res.app_store!.amount_cents, store: true, resolve }));
+        setTestSheet(null);
+        if (outcome === 'cancelled') return Alert.alert(t('book.paymentCancelled'));
+        await api(`/dev/app-store/${res.booking.id}/simulate`, { method: 'POST', body: {} });
+      } else if (res.app_store) {
+        const purchase = await buyOnAppStore(res.app_store.product_id, res.app_store.app_account_token);
+        if (purchase.outcome === 'cancelled') return Alert.alert(t('book.paymentCancelled'));
+        if (purchase.outcome === 'error') return Alert.alert(t('appstore.error'));
+        await api(`/bookings/${res.booking.id}/app-store-transaction`, { method: 'POST', body: { signed_transaction: purchase.signedTransaction } });
+        await purchase.finish(); // only after our server verified it, so an interrupted purchase is retried
+      } else if (sheet?.gateway === 'fake') {
         // Test mode (no Stripe account yet): a stand-in sheet, then the API simulates the processor's webhook.
-        const outcome = await new Promise<TestOutcome>((resolve) => setTestSheet({ amount: hold.price.total_cents, resolve }));
+        const outcome = await new Promise<TestOutcome>((resolve) => setTestSheet({ amount: toPay, resolve }));
         setTestSheet(null);
         if (outcome === 'cancelled') return;
         await api(`/dev/payments/${res.booking.id}/simulate`, { method: 'POST', body: outcome === 'failed' ? { outcome: 'failed' } : {} });
@@ -158,9 +171,21 @@ export default function BookScreen() {
               <Row label={t('book.listed', { price: formatMoney(hold.price.listed_cents / hold.seats, lang), seats: seatsLabel(hold.seats, lang) })}
                 value={formatMoney(hold.price.listed_cents, lang)} />
               <Row label={t('book.fee')} value={formatMoney(hold.price.fee_cents, lang)} />
+              {hold.price.store_surcharge_cents ? (
+                <Row label={t('appstore.surcharge')} value={formatMoney(hold.price.store_surcharge_cents, lang)} />
+              ) : null}
               <View style={styles.divider} />
               <Row label={t('book.total')} value={formatMoney(hold.price.total_cents, lang)} strong />
+              {hold.credit_available_cents > 0 ? (
+                <Row label={t('credits.willUse')} value={`− ${formatMoney(Math.min(hold.credit_available_cents, hold.price.total_cents), lang)}`} />
+              ) : null}
             </View>
+            {hold.channel === 'app_store' ? (
+              <View style={[styles.timer, { marginTop: space.lg, marginBottom: 0, backgroundColor: colors.surface }]}>
+                <Ionicons name="logo-apple" size={18} color={colors.text} />
+                <Text style={[type.small, { marginLeft: space.sm, flex: 1, color: colors.text }]}>{t('appstore.note')}</Text>
+              </View>
+            ) : null}
             {e.cancellation_policy ? (
               <View style={{ marginTop: space.xl }}>
                 <Text style={type.bodyStrong}>{t('book.policyTitle')}</Text>
@@ -183,11 +208,13 @@ export default function BookScreen() {
         ) : expired ? (
           <Button title={t('common.back')} variant="dark" onPress={() => setHold(null)} style={{ flex: 1 }} />
         ) : (
-          <Button title={t('book.pay', { total: `${formatMoney(hold.price.total_cents, lang)} MXN` })} onPress={payNow}
+          <Button title={hold.credit_available_cents > 0
+            ? t('book.pay', { total: `${formatMoney(Math.max(hold.price.total_cents - hold.credit_available_cents, 0), lang)} MXN` })
+            : t('book.pay', { total: `${formatMoney(hold.price.total_cents, lang)} MXN` })} onPress={payNow}
             loading={busy} style={{ flex: 1 }} />
         )}
       </View>
-      {testSheet ? <TestPaymentSheet amountCents={testSheet.amount} onResult={testSheet.resolve} /> : null}
+      {testSheet ? <TestPaymentSheet amountCents={testSheet.amount} store={testSheet.store} onResult={testSheet.resolve} /> : null}
     </SafeAreaView>
   );
 }

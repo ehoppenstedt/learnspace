@@ -1,0 +1,33 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_APP_ENV": "development" }
+    },
+    "pilot": {
+      "distribution": "store",
+      "channel": "pilot",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-RAILWAY-DOMAIN/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-PRODUCTION-DOMAIN/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    }
+  },
+  "submit": {
+    "pilot": { "ios": { "ascAppId": "REPLACE-AFTER-CREATING-THE-APP" }, "android": { "track": "internal" } }
+  }
+}

@@ -1,7 +1,15 @@
 from django.contrib import admin
 
 from apps.moderation.admin import AuditedAdminMixin
-from apps.payments.models import CreditEntry, FeeConfig, Payment, PaymentAccount, ProviderTaxProfile, WebhookEvent, WithholdingConfig
+from apps.payments.models import (
+    CreditEntry,
+    FeeConfig,
+    Payment,
+    PaymentAccount,
+    ProviderTaxProfile,
+    WebhookEvent,
+    WithholdingConfig,
+)
 
 
 class ImmutableConfigAdmin(AuditedAdminMixin, admin.ModelAdmin):

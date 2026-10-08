@@ -117,7 +117,9 @@ export default function BookingDetail() {
           <Section title={t('bookings.paid')} last={!b.can_cancel}>
             <PriceRow label={t('book.listed', { price: formatMoney(b.price.listed_cents / b.seats, lang), seats: seatsLabel(b.seats, lang) })} value={formatMoney(b.price.listed_cents, lang)} />
             <PriceRow label={t('book.fee')} value={formatMoney(b.price.fee_cents, lang)} />
+            {b.price.store_surcharge_cents ? <PriceRow label={t('appstore.surcharge')} value={formatMoney(b.price.store_surcharge_cents, lang)} /> : null}
             <PriceRow label={t('book.total')} value={formatMoney(b.price.total_cents, lang)} strong />
+            {b.price.credit_cents ? <PriceRow label={t('credits.paidWith')} value={formatMoney(b.price.credit_cents, lang)} /> : null}
             {b.refunded_cents ? <PriceRow label={t('bookings.refunded')} value={`− ${formatMoney(b.refunded_cents, lang)}`} /> : null}
             {['confirmed', 'completed', 'no_show', 'cancelled'].includes(b.status) ? (
               <Button title={t('testmode.receipt')} variant="ghost" icon="document-text-outline" onPress={async () => {
@@ -174,6 +176,17 @@ function CancelSheet({ booking, quote, onClose }: { booking: Booking; quote: Can
             <Text style={type.display}>{formatMoney(quote.refund_cents, lang)} MXN</Text>
             <PriceRow label={t('cancel.listedPart')} value={formatMoney(quote.listed_refund_cents, lang)} />
             <PriceRow label={t('cancel.feePart')} value={formatMoney(quote.fee_refund_cents, lang)} />
+            {quote.surcharge_refund_cents ? <PriceRow label={t('appstore.surcharge')} value={formatMoney(quote.surcharge_refund_cents, lang)} /> : null}
+            {quote.credit_cents > 0 ? (
+              <Text style={[type.small, { color: colors.brand }]}>
+                {quote.card_cents > 0
+                  ? t('credits.splitRefund', { card: formatMoney(quote.card_cents, lang), credit: formatMoney(quote.credit_cents, lang) })
+                  : t('credits.asCredit')}
+              </Text>
+            ) : null}
+            {booking.price.store_surcharge_cents > 0 && !quote.surcharge_refund_cents ? (
+              <Text style={type.small}>{t('appstore.surchargeKept', { amount: formatMoney(booking.price.store_surcharge_cents, lang) })}</Text>
+            ) : null}
             {quote.refund_cents === 0 ? <Text style={type.small}>{t('cancel.noRefund')}</Text> : null}
             {quote.fee_refund_cents === 0 && quote.refund_cents > 0 ? <Text style={type.small}>{t('cancel.feeRetained')}</Text> : null}
           </View>
