@@ -66,7 +66,7 @@ Checks:
 
 ```bash
 cd backend && . .venv/bin/activate
-pytest                      # 234 tests (needs the PostGIS database above)
+pytest                      # 235 tests (needs the PostGIS database above)
 ruff check .
 python manage.py bench_feed # feed latency through the full Django stack
 ```

@@ -556,6 +556,9 @@ def _sync_no_show(booking: Booking) -> None:
     elif not all_absent and booking.status == Booking.Status.NO_SHOW:
         booking.status = Booking.Status.COMPLETED if booking.ends_at <= timezone.now() else Booking.Status.CONFIRMED
     booking.save(update_fields=["status", "updated_at"])
+    from apps.reviews.services import sync_no_show
+
+    sync_no_show(booking)
 
 
 def dispute_no_show(user, booking_id, details: str):

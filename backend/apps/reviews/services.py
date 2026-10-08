@@ -21,8 +21,9 @@ from apps.catalog.models import Experience
 from apps.core.exceptions import DomainError
 from apps.reviews.models import ConductAppeal, ConductRating, Review
 
+# A no-show neither reviews the class nor gets a conduct rating: nobody was there to rate.
 LEARNER_REVIEWABLE = {Booking.Status.CONFIRMED, Booking.Status.COMPLETED}
-PROVIDER_RATEABLE = {Booking.Status.CONFIRMED, Booking.Status.COMPLETED, Booking.Status.NO_SHOW}
+PROVIDER_RATEABLE = LEARNER_REVIEWABLE
 
 
 def window(booking: Booking) -> tuple:
@@ -134,6 +135,19 @@ def recompute_experience_rating(experience: Experience) -> None:
     pagg = Review.objects.filter(experience__provider=provider, revealed_at__isnull=False,
                                  moderation=Review.Moderation.VISIBLE).aggregate(avg=Avg("overall"), n=Count("id"))
     type(provider).objects.filter(pk=provider.pk).update(rating_avg=_two(pagg["avg"]), rating_count=pagg["n"])
+
+
+def sync_no_show(booking: Booking) -> None:
+    """Attendance can be marked after the host already rated: a no-show's rating stops counting,
+    and counts again if the mark is corrected (unless an appeal overturned it)."""
+    rating = ConductRating.objects.filter(booking=booking).first()
+    if rating is None:
+        return
+    excluded = booking.status == Booking.Status.NO_SHOW or rating.appeals.filter(status=ConductAppeal.Status.OVERTURNED).exists()
+    if rating.excluded != excluded:
+        rating.excluded = excluded
+        rating.save(update_fields=["excluded", "updated_at"])
+        recompute_conduct(booking.learner)
 
 
 def recompute_conduct(learner) -> None:

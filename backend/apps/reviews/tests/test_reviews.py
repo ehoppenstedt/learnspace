@@ -98,14 +98,30 @@ def test_one_review_per_booking_and_only_own_bookings(api, learner, booking):
     assert res.data["error"]["code"] == "already_reviewed"
 
 
-def test_cancelled_booking_cannot_be_reviewed_but_no_show_can_be_rated(api, learner, provider_user, booking):
+def test_no_show_can_neither_review_nor_be_rated(api, learner, provider_user, booking):
     booking.status = "no_show"
     booking.save()
     with after(booking, hours=1):
         res = auth(api, learner).post(f"/api/v1/bookings/{booking.pk}/review", REVIEW, format="json")
         assert res.data["error"]["code"] == "not_reviewable"
         res = auth(api, provider_user).post(f"/api/v1/provider/bookings/{booking.pk}/conduct-rating", CONDUCT, format="json")
-    assert res.status_code == 201
+        assert res.data["error"]["code"] == "not_rateable"
+        assert api.get("/api/v1/me/reviews/pending").data["conduct_ratings"] == []
+
+
+def test_marking_absent_after_rating_stops_it_counting(api, learner, provider_user, booking):
+    with after(booking, hours=1):
+        auth(api, provider_user).post(f"/api/v1/provider/bookings/{booking.pk}/conduct-rating", {"respect": 1, "punctuality": 1}, format="json")
+        auth(api, learner).post(f"/api/v1/bookings/{booking.pk}/review", REVIEW, format="json")  # reveals both
+        assert LearnerProfile.objects.get(user=learner).conduct_score == 1
+        session_id = booking.session_id
+        mark = {"marks": [{"booking_id": str(booking.pk), "attendance": "absent"}]}
+        assert auth(api, provider_user).post(f"/api/v1/provider/sessions/{session_id}/attendance", mark, format="json").status_code == 200
+        assert ConductRating.objects.get().excluded is True
+        assert LearnerProfile.objects.get(user=learner).conduct_score is None
+        mark["marks"][0]["attendance"] = "present"  # correction
+        api.post(f"/api/v1/provider/sessions/{session_id}/attendance", mark, format="json")
+    assert LearnerProfile.objects.get(user=learner).conduct_score == 1
 
 
 def test_provider_cannot_rate_other_providers_bookings(api, booking):

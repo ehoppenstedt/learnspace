@@ -9,7 +9,7 @@ Status: **built, tested, awaiting your approval.** Payments remain in test mode 
 - **Learner rates:** overall, "did you learn what was promised", host, and space (in-person only). They can add a public text and a **private note only the host sees**.
 - **Host rates the learner:** respect and punctuality, plus an optional note for the admin team that the learner never sees.
 - **Double-blind:** nobody sees the other side's rating until both have submitted, or until the window closes (an hourly job reveals whatever exists). This prevents retaliation ratings.
-- **Who can rate:** cancelled bookings can't be reviewed. A no-show can still be rated by the host but can't review the class.
+- **Who can rate:** cancelled bookings and no-shows can't be reviewed, and a no-show learner gets no conduct rating. If the host marks someone absent after already rating them, that rating stops counting (and counts again if the mark is corrected).
 - **Aggregates:** experience and host averages are recomputed from revealed, visible reviews only. Hiding a review removes it from the average.
 
 **Conduct score and appeals**
@@ -63,7 +63,7 @@ Real renders: web preview at phone size against the seeded API. Photos are stand
 
 | Check | Result |
 |---|---|
-| Backend tests (real PostGIS) | **234 passed** (Phase 3 adds 48). Covered: window open/close, double-blind reveal, one-sided reveal at day 14, facilities rule, aggregates, moderation hide, appeals (overturn/uphold/duplicate/unrevealed), detection (12 cases incl. false-positive checks), warning → acknowledged send, no warning after booking, provider can't cold-message, third parties can't read, suspended users can't send, reports (visibility, dedupe), iOS gate on feed/detail/holds, link only after booking, link in calendar file and reminder, admin flag-queue actions, seed consistency |
+| Backend tests (real PostGIS) | **235 passed** (Phase 3 adds 49). Covered: window open/close, double-blind reveal, no-shows excluded (incl. absence marked after rating), one-sided reveal at day 14, facilities rule, aggregates, moderation hide, appeals (overturn/uphold/duplicate/unrevealed), detection (12 cases incl. false-positive checks), warning → acknowledged send, no warning after booking, provider can't cold-message, third parties can't read, suspended users can't send, reports (visibility, dedupe), iOS gate on feed/detail/holds, link only after booking, link in calendar file and reminder, admin flag-queue actions, seed consistency |
 | Mobile | `tsc` clean, ESLint 0 errors, 18 unit tests, iOS + Android bundles build |
 | End to end (browser) | Learner: profile badges → pending → review → inbox → reply → reviews on detail. Host: pending → rate learner → reveal → reviews received with private note → online in wizard. Learner: conduct 4.5 after reveal → appeal sheet. Feed via API: online experience visible for `web`, absent for `ios`. |
 
@@ -91,7 +91,7 @@ Apple's rule 3.1.1 requires in-app purchase (30% commission, or 15% under the sm
 1. **Review window:** 14 days, counted from the end of the last session (courses are reviewed once, at the end).
 2. **Public reviews:** show the first name only and no photo.
 3. **Learners can't reply to reviews.** Hosts can't reply publicly yet (common follow-up).
-4. **No-shows:** the host can rate the learner, but the learner can't review the class.
+4. **No-shows:** no rating in either direction (confirmed by you).
 5. **Polling instead of websockets:** chat updates every 4 s while open, plus push. It's cheap on the USD 50 budget; websockets need Channels/Redis, which we excluded.
 6. **Messages are kept** for moderation. On account deletion they stay with the sender anonymized, the same as bookings.
 
